@@ -149,10 +149,21 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;bac
 .memo-export .btn-secondary{background:transparent;border:1px solid var(--border);color:var(--text2)}
 .memo-export .btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
 
+.ch-views .view-reset{opacity:0;cursor:pointer;font-size:11px;color:var(--text3);margin-left:2px;transition:opacity .2s,color .2s}
+.chapter-item:hover .view-reset{opacity:1}
+.view-reset:hover{color:#f44!important}
+.meta-reset-btn{display:inline-flex;align-items:center;gap:4px;margin-left:8px;padding:2px 8px;border:1px solid #d0d3d9;border-radius:6px;background:transparent;color:#999;font-size:11px;cursor:pointer;transition:all .15s;font-family:inherit;vertical-align:middle}
+.meta-reset-btn:hover{border-color:#f44;color:#f44;background:rgba(244,68,68,.05)}
+
 /* AUTO-DETECTED HEADINGS */
 .chapter-content h2.auto-heading{font-size:20px;font-weight:800;color:var(--heading1);margin:32px 0 14px;padding:10px 0 10px 16px;border-left:4px solid var(--accent);background:linear-gradient(90deg,rgba(74,144,217,.06) 0%,transparent 80%);border-radius:0 6px 6px 0;letter-spacing:-.3px;line-height:1.35}
 .chapter-content h3.auto-heading{font-size:17px;font-weight:700;color:var(--heading2);margin:26px 0 12px;padding-bottom:7px;border-bottom:2px solid #e5e8ed;letter-spacing:-.2px}
 .chapter-content h4.auto-heading{font-size:15.5px;font-weight:700;color:var(--heading3);margin:20px 0 10px;padding-left:10px;border-left:3px solid #d0d5de}
+
+/* ====== HAMBURGER BUTTON (mobile) ====== */
+.hamburger{display:none;position:fixed;top:8px;left:8px;z-index:200;width:40px;height:40px;border:none;border-radius:10px;background:var(--dark);color:#fff;font-size:20px;cursor:pointer;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.3)}
+.hamburger:active{transform:scale(.95)}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:90;backdrop-filter:blur(2px)}
 
 /* ====== RESPONSIVE ====== */
 @media(max-width:1100px){
@@ -163,18 +174,44 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;bac
   .content-area{padding:20px 20px 60px}
   .memo-toggle{width:220px}
   .chapter-content{font-size:14px}
-  .chapter-content h2{font-size:18px}
-  .chapter-content h3{font-size:16px}
+  .chapter-content h2,.chapter-content h2.auto-heading{font-size:18px}
+  .chapter-content h3,.chapter-content h3.auto-heading{font-size:16px}
 }
-@media(max-width:700px){
-  .sidebar{width:180px;min-width:180px}
-  .memo-toggle{width:180px}
-  .section-header{font-size:11.5px;padding:9px 12px}
-  .chapter-item{font-size:11px;padding:6px 12px 6px 20px}
+@media(max-width:768px){
+  /* Mobile: sidebar as overlay drawer */
+  .hamburger{display:flex}
+  .sidebar{position:fixed;left:-300px;top:0;width:280px;min-width:280px;z-index:100;transition:left .3s ease;box-shadow:4px 0 20px rgba(0,0,0,.4)}
+  .sidebar.open{left:0}
+  .sidebar-overlay.open{display:block}
+  .memo-toggle{width:280px}
+  .main{width:100%}
+  .main-header{padding:10px 16px 10px 56px;font-size:12px}
+  .content-area{padding:16px 16px 80px}
+  .chapter-content{font-size:14px;line-height:1.8}
+  .chapter-content h2,.chapter-content h2.auto-heading{font-size:17px;padding:8px 0 8px 12px;margin:24px 0 10px}
+  .chapter-content h3,.chapter-content h3.auto-heading{font-size:15.5px;margin:20px 0 10px}
+  .chapter-content h4,.chapter-content h4.auto-heading{font-size:14.5px}
+  .chapter-meta{padding:14px 16px;border-radius:8px}
+  .chapter-meta .meta-title{font-size:17px}
+  .welcome{padding-top:60px}
+  .welcome h2{font-size:22px}
+  .welcome .stats{gap:32px}
+  .welcome .stat-num{font-size:30px}
+  .memo-panel.open{width:100%;min-width:100%}
+  .section-header{font-size:13px;padding:12px 16px}
+  .chapter-item{font-size:12px;padding:8px 16px 8px 28px}
+}
+@media(max-width:400px){
+  .content-area{padding:12px 12px 70px}
+  .chapter-content{font-size:13.5px}
 }
 </style>
 </head>
 <body>
+
+<!-- HAMBURGER (mobile) -->
+<button class="hamburger" id="hamburgerBtn" onclick="toggleSidebar()">☰</button>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
 <!-- SIDEBAR -->
 <div class="sidebar">
@@ -282,7 +319,7 @@ function updateViewBadge(chNum) {
   if (!el) return;
   const v = viewData[chNum];
   if (v && v.count > 0) {
-    el.innerHTML = `<span class="view-badge">${v.count}회</span><span class="view-time">${timeAgo(v.lastViewed)}</span>`;
+    el.innerHTML = `<span class="view-badge">${v.count}회</span><span class="view-time">${timeAgo(v.lastViewed)}</span><span class="view-reset" onclick="resetChapterView(${chNum}, event)" title="이 단원 조회수 초기화">✕</span>`;
   } else {
     el.innerHTML = '';
   }
@@ -293,6 +330,23 @@ function resetViews() {
   viewData = {};
   localStorage.setItem('icl75_views', JSON.stringify(viewData));
   document.querySelectorAll('.ch-views').forEach(el => el.innerHTML = '');
+  // Refresh current chapter view if open
+  if (currentChapter) loadChapter(currentChapter.num);
+}
+
+function resetChapterView(chNum, e) {
+  if (e) { e.stopPropagation(); e.preventDefault(); }
+  if (!viewData[chNum]) return;
+  delete viewData[chNum];
+  localStorage.setItem('icl75_views', JSON.stringify(viewData));
+  updateViewBadge(chNum);
+  // Refresh meta if this chapter is currently displayed
+  if (currentChapter && currentChapter.num == chNum) {
+    const metaViews = document.querySelector('.chapter-meta .meta-views');
+    if (metaViews) metaViews.remove();
+    const metaInfo = document.querySelector('.chapter-meta .meta-info');
+    if (metaInfo) metaInfo.textContent = 'ICL 75판 · ' + currentChapter.word_count.toLocaleString() + ' words';
+  }
 }
 
 // ===== BUILD NAV =====
@@ -328,7 +382,7 @@ function buildNav() {
     chapters.forEach(ch => {
       const v = viewData[ch.num];
       const viewHtml = (v && v.count > 0)
-        ? `<span class="view-badge">${v.count}회</span><span class="view-time">${timeAgo(v.lastViewed)}</span>`
+        ? `<span class="view-badge">${v.count}회</span><span class="view-time">${timeAgo(v.lastViewed)}</span><span class="view-reset" onclick="resetChapterView(${ch.num}, event)" title="이 단원 조회수 초기화">✕</span>`
         : '';
 
       const item = document.createElement('div');
@@ -362,6 +416,7 @@ function loadChapter(num) {
 
   currentChapter = ch;
   recordView(num);
+  closeSidebar();
 
   // Update active state
   document.querySelectorAll('.chapter-item').forEach(el => el.classList.remove('active'));
@@ -395,7 +450,7 @@ function loadChapter(num) {
       <div class="chapter-meta">
         <div class="meta-title">Chapter ${num}: ${ch.title}</div>
         <div class="meta-info">ICL 75판 · ${ch.word_count.toLocaleString()} words${viewInfo}</div>
-        ${v.count > 0 ? `<div class="meta-views">👁 ${v.count}회 열람 · ${timeAgo(v.lastViewed)}</div>` : ''}
+        ${v.count > 0 ? `<div class="meta-views">👁 ${v.count}회 열람 · ${timeAgo(v.lastViewed)}<button class="meta-reset-btn" onclick="resetChapterView(${num}, event)">✕ 초기화</button></div>` : ''}
       </div>
       ${ch.content}
     </div>
@@ -612,6 +667,20 @@ function processHeadings() {
       p.parentNode.replaceChild(heading, p);
     }
   });
+}
+
+// ===== MOBILE SIDEBAR =====
+function toggleSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  sidebar.classList.toggle('open');
+  overlay.classList.toggle('open');
+}
+function closeSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  sidebar.classList.remove('open');
+  overlay.classList.remove('open');
 }
 
 // ===== INIT =====
