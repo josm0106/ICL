@@ -149,6 +149,11 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;bac
 .memo-export .btn-secondary{background:transparent;border:1px solid var(--border);color:var(--text2)}
 .memo-export .btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
 
+/* AUTO-DETECTED HEADINGS */
+.chapter-content h2.auto-heading{font-size:20px;font-weight:800;color:var(--heading1);margin:32px 0 14px;padding:10px 0 10px 16px;border-left:4px solid var(--accent);background:linear-gradient(90deg,rgba(74,144,217,.06) 0%,transparent 80%);border-radius:0 6px 6px 0;letter-spacing:-.3px;line-height:1.35}
+.chapter-content h3.auto-heading{font-size:17px;font-weight:700;color:var(--heading2);margin:26px 0 12px;padding-bottom:7px;border-bottom:2px solid #e5e8ed;letter-spacing:-.2px}
+.chapter-content h4.auto-heading{font-size:15.5px;font-weight:700;color:var(--heading3);margin:20px 0 10px;padding-left:10px;border-left:3px solid #d0d5de}
+
 /* ====== RESPONSIVE ====== */
 @media(max-width:1100px){
   .content-area{padding:28px 32px 80px}
@@ -397,6 +402,7 @@ function loadChapter(num) {
   `;
   area.scrollTop = 0;
   applyHighlights();
+  processHeadings();
   history.replaceState(null, '', `#ch${num}`);
 }
 
@@ -517,6 +523,96 @@ document.addEventListener('mouseup', () => {
 
 function removeFloatBtn() { const b = document.getElementById('floatAddBtn'); if (b) b.remove(); }
 function removeFloatOnClick(e) { if (e.target.id !== 'floatAddBtn') removeFloatBtn(); }
+
+
+// ===== AUTO HEADING DETECTION =====
+function processHeadings() {
+  const content = document.getElementById('chapterContent');
+  if (!content) return;
+  const ps = Array.from(content.querySelectorAll('p'));
+  
+  // Known heading keywords (case-insensitive match)
+  const h2Keywords = [
+    /^ABSTRACT$/i, /^SYMPOSIUM$/i, /^Abstract$/i, /^Introduction$/i,
+    /^Summary$/i, /^Conclusion$/i, /^Discussion$/i, /^References$/i,
+    /^Key Takeaway/i, /^Key Points?/i, /^Background$/i, /^결론$/,
+    /^요약$/i, /^참고문헌$/i
+  ];
+  
+  ps.forEach(p => {
+    const text = p.textContent.trim();
+    const len = text.length;
+    if (len === 0 || len > 120) return;
+    
+    // Skip meta lines (author, citation, Dr.)
+    if (/^(Dr\.|정리:|Instr Course|Instructional Course|\d{4} ELITE)/.test(text)) return;
+    if (/^(CHAPTER \d|Chapter \d+ —)/.test(text)) return;
+    if (/MD[,\s]|FAAOS|FRCSC|FAOA/.test(text) && len < 100) return;
+    
+    // Pattern 1: ALL CAPS (>= 3 chars, mostly uppercase letters)
+    const upperRatio = (text.replace(/[^A-Z]/g, '').length) / Math.max(text.replace(/[^a-zA-Z]/g, '').length, 1);
+    
+    // Pattern 2: Numbered section (1. Title, 2. Title, 3-1. Title)
+    const numberedMatch = text.match(/^(\d{1,2})([.-]\d{1,2})?[.)]\s*.+/);
+    
+    // Pattern 3: Korean + (English) mixed heading
+    const korEngMixed = /[가-힣].+\([A-Z][a-z]/.test(text) && len < 90;
+    
+    // Pattern 4: Title case English (starts with capital, mostly title words)
+    const titleCase = /^[A-Z][a-z]+/.test(text) && len < 80;
+    const wordCount = text.split(/\s+/).length;
+    
+    // Pattern 5: h2Keywords exact match
+    const isH2Keyword = h2Keywords.some(re => re.test(text));
+    
+    // Pattern 6: Korean heading pattern (ends with colon or is a known format)
+    const korHeading = /^[가-힣]/.test(text) && len < 50 && !text.includes('다.') && !text.includes('있다') && !text.includes('된다');
+    
+    // Determine heading level
+    let level = 0;  // 0 = not a heading
+    
+    if (isH2Keyword) {
+      level = 2;
+    } else if (numberedMatch) {
+      const mainNum = numberedMatch[1];
+      const subNum = numberedMatch[2];
+      if (subNum) {
+        level = 3;  // 3-1. Type → h3
+      } else {
+        level = 2;  // 1. Introduction → h2
+      }
+    } else if (upperRatio > 0.8 && len >= 3 && len < 60 && text.replace(/[^A-Za-z]/g, '').length > 2) {
+      level = 2;  // ALL CAPS → h2
+    } else if (korEngMixed && len < 90) {
+      // Korean (English) pattern - check if it's a heading or content
+      const nextP = p.nextElementSibling;
+      const nextText = nextP ? nextP.textContent.trim() : '';
+      if (nextText.length > len * 1.5 || nextText.length > 100) {
+        level = 2;  // Likely heading if followed by longer text
+      }
+    } else if (titleCase && wordCount <= 10 && wordCount >= 2 && len < 70) {
+      // Title case multi-word English
+      const nextP = p.nextElementSibling;
+      const nextText = nextP ? nextP.textContent.trim() : '';
+      if (nextText.length > len * 1.2 || !nextP) {
+        level = 3;
+      }
+    } else if (korHeading && wordCount <= 5) {
+      const nextP = p.nextElementSibling;
+      const nextText = nextP ? nextP.textContent.trim() : '';
+      if (nextText.length > len) {
+        level = 3;
+      }
+    }
+    
+    if (level > 0) {
+      const heading = document.createElement('h' + level);
+      heading.innerHTML = p.innerHTML;
+      heading.className = 'auto-heading';
+      p.parentNode.replaceChild(heading, p);
+    }
+  });
+}
 
 // ===== INIT =====
 buildNav();
