@@ -133,6 +133,23 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;bac
 .memo-panel-header h3{font-size:14px;font-weight:700;display:flex;align-items:center;gap:6px}
 .memo-close{cursor:pointer;color:var(--text2);font-size:20px;padding:4px;transition:color .15s}
 .memo-close:hover{color:#fff}
+/* Memo tab bar */
+.memo-tabs{display:flex;border-bottom:1px solid var(--border);background:var(--dark2)}
+.memo-tab-btn{flex:1;padding:9px 4px;border:none;background:none;color:var(--text3);font-size:11.5px;cursor:pointer;font-family:inherit;font-weight:600;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap}
+.memo-tab-btn:hover{color:var(--text);background:var(--dark3)}
+.memo-tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+/* Section filter chips */
+.memo-filter-bar{display:flex;gap:5px;padding:8px 12px;overflow-x:auto;border-bottom:1px solid var(--border);background:var(--dark)}
+.memo-filter-bar::-webkit-scrollbar{height:2px}
+.memo-filter-bar::-webkit-scrollbar-thumb{background:var(--dark4);border-radius:2px}
+.memo-filter-chip{padding:4px 10px;border:1px solid var(--border);border-radius:12px;background:none;color:var(--text3);font-size:10.5px;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .15s}
+.memo-filter-chip:hover{border-color:var(--text2);color:var(--text)}
+.memo-filter-chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.memo-filter-chip .chip-count{font-size:9px;margin-left:3px;opacity:.7}
+/* Memo content area */
+.memo-body{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.memo-tab-content{display:none;flex:1;flex-direction:column;overflow:hidden}
+.memo-tab-content.active{display:flex}
 .memo-list{flex:1;overflow-y:auto;padding:10px}
 .memo-list::-webkit-scrollbar{width:3px}
 .memo-list::-webkit-scrollbar-thumb{background:var(--dark4);border-radius:2px}
@@ -143,6 +160,18 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;bac
 .memo-item .memo-text{color:var(--text)}
 .memo-item .memo-del{position:absolute;top:8px;right:10px;cursor:pointer;color:var(--text3);font-size:15px;transition:color .15s}
 .memo-item .memo-del:hover{color:#f44}
+/* Free memo (자유 메모장) */
+.memo-item.free-memo{border-left-color:var(--accent)}
+.free-memo-section{padding:10px 12px;border-bottom:1px solid var(--border);background:var(--dark)}
+.free-memo-section select{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--dark2);color:var(--text);font-size:12px;font-family:inherit;margin-bottom:8px}
+.free-memo-input-row{display:flex;gap:6px}
+.free-memo-input{flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--dark2);color:var(--text);font-size:12.5px;font-family:inherit;resize:none;outline:none;min-height:36px;max-height:100px;line-height:1.4}
+.free-memo-input:focus{border-color:var(--accent)}
+.free-memo-input::placeholder{color:var(--text3)}
+.free-memo-add{padding:8px 14px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:12.5px;cursor:pointer;font-weight:700;font-family:inherit;white-space:nowrap;transition:background .15s}
+.free-memo-add:hover{background:#3a7bc8}
+.free-memo-add:disabled{opacity:.4;cursor:not-allowed}
+/* Export */
 .memo-export{padding:12px 16px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px}
 .memo-export button{width:100%;padding:9px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:12.5px;cursor:pointer;font-weight:700;transition:background .15s;font-family:inherit}
 .memo-export button:hover{background:#3a7bc8}
@@ -256,15 +285,45 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;bac
     <h3>📋 암기노트</h3>
     <span class="memo-close" onclick="toggleMemo()">&times;</span>
   </div>
-  <div class="memo-list" id="memoList">
-    <div class="memo-empty" id="memoEmpty">
-      저장된 노트가 없습니다<br><br>
-      본문에서 텍스트를 선택하면<br>암기노트에 추가할 수 있습니다
+  <!-- Tab bar: 하이라이트 / 자유메모 -->
+  <div class="memo-tabs">
+    <button class="memo-tab-btn active" onclick="switchMemoTab('highlight')">📌 하이라이트</button>
+    <button class="memo-tab-btn" onclick="switchMemoTab('free')">✏️ 자유 메모</button>
+  </div>
+  <!-- Filter chips (공통) -->
+  <div class="memo-filter-bar" id="memoFilterBar"></div>
+  <!-- Tab content: 하이라이트 -->
+  <div class="memo-body">
+    <div class="memo-tab-content active" id="memoTabHighlight">
+      <div class="memo-list" id="memoList">
+        <div class="memo-empty" id="memoEmpty">
+          저장된 노트가 없습니다<br><br>
+          본문에서 텍스트를 선택하면<br>암기노트에 추가할 수 있습니다
+        </div>
+      </div>
+    </div>
+    <!-- Tab content: 자유 메모 -->
+    <div class="memo-tab-content" id="memoTabFree">
+      <div class="free-memo-section">
+        <select id="freeMemoTarget">
+          <option value="global">📚 전체 메모</option>
+        </select>
+        <div class="free-memo-input-row">
+          <textarea class="free-memo-input" id="freeMemoInput" placeholder="자유롭게 메모를 작성하세요..." rows="1" oninput="autoResizeTextarea(this)"></textarea>
+          <button class="free-memo-add" id="freeMemoAddBtn" onclick="addFreeMemo()" disabled>추가</button>
+        </div>
+      </div>
+      <div class="memo-list" id="freeMemoList">
+        <div class="memo-empty" id="freeMemoEmpty">
+          자유 메모가 없습니다<br><br>
+          위 입력창에서 직접 메모를 작성하세요
+        </div>
+      </div>
     </div>
   </div>
   <div class="memo-export">
     <button onclick="exportMemos()">📥 노트 내보내기 (텍스트)</button>
-    <button class="btn-secondary" onclick="clearAllMemos()">🗑 전체 노트 삭제</button>
+    <button class="btn-secondary" onclick="clearAllMemos()">🗑 현재 탭 노트 삭제</button>
   </div>
 </div>
 
@@ -481,48 +540,120 @@ function filterChapters() {
   });
 }
 
-// ===== MEMO (암기노트) =====
+// ===== MEMO (암기노트) - Enhanced with section filter + free memo =====
+let currentMemoTab = 'highlight';  // 'highlight' or 'free'
+let currentMemoFilter = 'all';     // 'all' or section index (0-11)
+let freeMemos = JSON.parse(localStorage.getItem('icl75_freememos') || '[]');
+
 function toggleMemo() { document.getElementById('memoPanel').classList.toggle('open'); }
 
+// --- Section helper ---
+function getSectionForChapter(chNum) {
+  for (let i = 0; i < SECTIONS.length; i++) {
+    const [lo, hi] = SECTIONS[i].range;
+    if (chNum >= lo && chNum <= hi) return i;
+  }
+  return -1;
+}
+function getSectionShortName(idx) {
+  if (idx < 0 || idx >= SECTIONS.length) return '전체';
+  return SECTIONS[idx].name.replace(/Sec \d+ · /, '').replace(/ \(.+\)/, '');
+}
+
+// --- Tab switching ---
+function switchMemoTab(tab) {
+  currentMemoTab = tab;
+  document.querySelectorAll('.memo-tab-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', (i === 0 && tab === 'highlight') || (i === 1 && tab === 'free'));
+  });
+  document.getElementById('memoTabHighlight').classList.toggle('active', tab === 'highlight');
+  document.getElementById('memoTabFree').classList.toggle('active', tab === 'free');
+  renderFilterChips();
+  if (tab === 'highlight') renderMemos();
+  else renderFreeMemos();
+}
+
+// --- Filter chips ---
+function renderFilterChips() {
+  const bar = document.getElementById('memoFilterBar');
+  const data = currentMemoTab === 'highlight' ? memos : freeMemos;
+  bar.innerHTML = '';
+  // "전체" chip
+  const allChip = document.createElement('button');
+  const allCount = data.length;
+  allChip.className = 'memo-filter-chip' + (currentMemoFilter === 'all' ? ' active' : '');
+  allChip.innerHTML = `전체<span class="chip-count">${allCount}</span>`;
+  allChip.onclick = () => { currentMemoFilter = 'all'; renderFilterChips(); currentMemoTab === 'highlight' ? renderMemos() : renderFreeMemos(); };
+  bar.appendChild(allChip);
+  // Per-section chips
+  SECTIONS.forEach((sec, idx) => {
+    let count;
+    if (currentMemoTab === 'highlight') {
+      count = data.filter(m => getSectionForChapter(m.chapterNum) === idx).length;
+    } else {
+      count = data.filter(m => m.sectionIdx === idx).length;
+    }
+    const chip = document.createElement('button');
+    chip.className = 'memo-filter-chip' + (currentMemoFilter === idx ? ' active' : '');
+    const shortName = getSectionShortName(idx);
+    chip.innerHTML = `${shortName}<span class="chip-count">${count}</span>`;
+    chip.onclick = () => { currentMemoFilter = idx; renderFilterChips(); currentMemoTab === 'highlight' ? renderMemos() : renderFreeMemos(); };
+    bar.appendChild(chip);
+  });
+  // For free memos: also show "전체 메모" (global, sectionIdx === -1)
+  if (currentMemoTab === 'free') {
+    const globalCount = data.filter(m => m.sectionIdx === -1).length;
+    const gChip = document.createElement('button');
+    gChip.className = 'memo-filter-chip' + (currentMemoFilter === -1 ? ' active' : '');
+    gChip.innerHTML = `📚전체메모<span class="chip-count">${globalCount}</span>`;
+    gChip.onclick = () => { currentMemoFilter = -1; renderFilterChips(); renderFreeMemos(); };
+    // Insert after "전체" chip
+    bar.insertBefore(gChip, bar.children[1]);
+  }
+}
+
+// --- Highlight memos ---
 function addMemo(text, chapterNum, chapterTitle) {
   memos.push({ text, chapterNum, chapterTitle, id: Date.now() });
-  saveMemos(); renderMemos();
+  saveMemos(); renderFilterChips(); renderMemos();
 }
 
 function deleteMemo(id) {
   memos = memos.filter(m => m.id !== id);
-  saveMemos(); renderMemos();
-}
-
-function clearAllMemos() {
-  if (memos.length === 0) { alert('저장된 노트가 없습니다.'); return; }
-  if (!confirm('모든 암기노트를 삭제하시겠습니까?')) return;
-  memos = [];
-  saveMemos(); renderMemos();
+  saveMemos(); renderFilterChips(); renderMemos();
 }
 
 function saveMemos() {
   localStorage.setItem('icl75_memos', JSON.stringify(memos));
-  document.getElementById('memoCount').textContent = memos.length;
+  document.getElementById('memoCount').textContent = memos.length + freeMemos.length;
 }
 
 function renderMemos() {
   const list = document.getElementById('memoList');
   const empty = document.getElementById('memoEmpty');
-  document.getElementById('memoCount').textContent = memos.length;
-
-  if (memos.length === 0) {
+  let filtered = memos;
+  if (currentMemoFilter !== 'all') {
+    filtered = memos.filter(m => getSectionForChapter(m.chapterNum) === currentMemoFilter);
+  }
+  document.getElementById('memoCount').textContent = memos.length + freeMemos.length;
+  list.querySelectorAll('.memo-item').forEach(el => el.remove());
+  if (filtered.length === 0) {
     empty.style.display = '';
-    list.querySelectorAll('.memo-item').forEach(el => el.remove());
+    if (currentMemoFilter !== 'all') {
+      empty.innerHTML = `이 섹션에 저장된 하이라이트가 없습니다<br><br>본문에서 텍스트를 선택하면<br>암기노트에 추가할 수 있습니다`;
+    } else {
+      empty.innerHTML = `저장된 노트가 없습니다<br><br>본문에서 텍스트를 선택하면<br>암기노트에 추가할 수 있습니다`;
+    }
     return;
   }
   empty.style.display = 'none';
-  list.querySelectorAll('.memo-item').forEach(el => el.remove());
-  memos.forEach(m => {
+  filtered.forEach(m => {
     const div = document.createElement('div');
     div.className = 'memo-item';
+    const secIdx = getSectionForChapter(m.chapterNum);
+    const secLabel = secIdx >= 0 ? getSectionShortName(secIdx) + ' · ' : '';
     div.innerHTML = `
-      <div class="memo-chapter">Ch${m.chapterNum}. ${m.chapterTitle}</div>
+      <div class="memo-chapter">${secLabel}Ch${m.chapterNum}. ${m.chapterTitle}</div>
       <div class="memo-text">${m.text}</div>
       <span class="memo-del" onclick="deleteMemo(${m.id})">&times;</span>
     `;
@@ -530,17 +661,132 @@ function renderMemos() {
   });
 }
 
-function exportMemos() {
-  if (memos.length === 0) { alert('저장된 노트가 없습니다.'); return; }
-  let text = '=== ICL 75판 암기노트 ===\n\n';
-  memos.forEach((m, i) => {
-    text += `[${i+1}] Ch${m.chapterNum}. ${m.chapterTitle}\n`;
-    text += `${m.text}\n\n`;
+// --- Free memos ---
+function initFreeMemoTargets() {
+  const sel = document.getElementById('freeMemoTarget');
+  sel.innerHTML = '<option value="global">📚 전체 메모</option>';
+  SECTIONS.forEach((sec, idx) => {
+    sel.innerHTML += `<option value="${idx}">${sec.name}</option>`;
   });
+}
+
+function autoResizeTextarea(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+  document.getElementById('freeMemoAddBtn').disabled = !el.value.trim();
+}
+
+function addFreeMemo() {
+  const input = document.getElementById('freeMemoInput');
+  const sel = document.getElementById('freeMemoTarget');
+  const text = input.value.trim();
+  if (!text) return;
+  const val = sel.value;
+  const sectionIdx = val === 'global' ? -1 : parseInt(val);
+  const sectionName = val === 'global' ? '전체 메모' : SECTIONS[sectionIdx].name;
+  freeMemos.push({ text, sectionIdx, sectionName, id: Date.now() });
+  saveFreeMemos();
+  input.value = '';
+  input.style.height = 'auto';
+  document.getElementById('freeMemoAddBtn').disabled = true;
+  renderFilterChips();
+  renderFreeMemos();
+}
+
+function deleteFreeMemo(id) {
+  freeMemos = freeMemos.filter(m => m.id !== id);
+  saveFreeMemos(); renderFilterChips(); renderFreeMemos();
+}
+
+function saveFreeMemos() {
+  localStorage.setItem('icl75_freememos', JSON.stringify(freeMemos));
+  document.getElementById('memoCount').textContent = memos.length + freeMemos.length;
+}
+
+function renderFreeMemos() {
+  const list = document.getElementById('freeMemoList');
+  const empty = document.getElementById('freeMemoEmpty');
+  let filtered = freeMemos;
+  if (currentMemoFilter === -1) {
+    filtered = freeMemos.filter(m => m.sectionIdx === -1);
+  } else if (currentMemoFilter !== 'all') {
+    filtered = freeMemos.filter(m => m.sectionIdx === currentMemoFilter);
+  }
+  document.getElementById('memoCount').textContent = memos.length + freeMemos.length;
+  list.querySelectorAll('.memo-item').forEach(el => el.remove());
+  if (filtered.length === 0) {
+    empty.style.display = '';
+    empty.innerHTML = currentMemoFilter !== 'all'
+      ? '이 섹션에 저장된 자유 메모가 없습니다<br><br>위 입력창에서 직접 메모를 작성하세요'
+      : '자유 메모가 없습니다<br><br>위 입력창에서 직접 메모를 작성하세요';
+    return;
+  }
+  empty.style.display = 'none';
+  filtered.forEach(m => {
+    const div = document.createElement('div');
+    div.className = 'memo-item free-memo';
+    const label = m.sectionIdx === -1 ? '📚 전체 메모' : getSectionShortName(m.sectionIdx);
+    const timeStr = timeAgo(m.id);
+    div.innerHTML = `
+      <div class="memo-chapter">${label} · ${timeStr}</div>
+      <div class="memo-text">${m.text}</div>
+      <span class="memo-del" onclick="deleteFreeMemo(${m.id})">&times;</span>
+    `;
+    list.appendChild(div);
+  });
+}
+
+// --- Clear & Export (enhanced) ---
+function clearAllMemos() {
+  if (currentMemoTab === 'highlight') {
+    const target = currentMemoFilter === 'all' ? memos : memos.filter(m => getSectionForChapter(m.chapterNum) === currentMemoFilter);
+    if (target.length === 0) { alert('삭제할 노트가 없습니다.'); return; }
+    const label = currentMemoFilter === 'all' ? '모든 하이라이트' : getSectionShortName(currentMemoFilter) + ' 섹션 하이라이트';
+    if (!confirm(`${label} ${target.length}개를 삭제하시겠습니까?`)) return;
+    if (currentMemoFilter === 'all') memos = [];
+    else memos = memos.filter(m => getSectionForChapter(m.chapterNum) !== currentMemoFilter);
+    saveMemos(); renderFilterChips(); renderMemos();
+  } else {
+    let target;
+    if (currentMemoFilter === 'all') target = freeMemos;
+    else if (currentMemoFilter === -1) target = freeMemos.filter(m => m.sectionIdx === -1);
+    else target = freeMemos.filter(m => m.sectionIdx === currentMemoFilter);
+    if (target.length === 0) { alert('삭제할 메모가 없습니다.'); return; }
+    const label = currentMemoFilter === 'all' ? '모든 자유 메모' : (currentMemoFilter === -1 ? '전체 메모' : getSectionShortName(currentMemoFilter) + ' 섹션 자유 메모');
+    if (!confirm(`${label} ${target.length}개를 삭제하시겠습니까?`)) return;
+    if (currentMemoFilter === 'all') freeMemos = [];
+    else if (currentMemoFilter === -1) freeMemos = freeMemos.filter(m => m.sectionIdx !== -1);
+    else freeMemos = freeMemos.filter(m => m.sectionIdx !== currentMemoFilter);
+    saveFreeMemos(); renderFilterChips(); renderFreeMemos();
+  }
+}
+
+function exportMemos() {
+  const allHighlights = currentMemoFilter === 'all' ? memos : memos.filter(m => getSectionForChapter(m.chapterNum) === currentMemoFilter);
+  const allFree = currentMemoFilter === 'all' ? freeMemos : (currentMemoFilter === -1 ? freeMemos.filter(m => m.sectionIdx === -1) : freeMemos.filter(m => m.sectionIdx === currentMemoFilter));
+  if (allHighlights.length === 0 && allFree.length === 0) { alert('내보낼 노트가 없습니다.'); return; }
+  const filterLabel = currentMemoFilter === 'all' ? '전체' : (currentMemoFilter === -1 ? '전체메모' : getSectionShortName(currentMemoFilter));
+  let text = `=== ICL 75판 암기노트 [${filterLabel}] ===\n\n`;
+  if (allHighlights.length > 0) {
+    text += '── 하이라이트 ──\n\n';
+    allHighlights.forEach((m, i) => {
+      const secLabel = getSectionShortName(getSectionForChapter(m.chapterNum));
+      text += `[${i+1}] ${secLabel} · Ch${m.chapterNum}. ${m.chapterTitle}\n`;
+      text += `${m.text}\n\n`;
+    });
+  }
+  if (allFree.length > 0) {
+    text += '── 자유 메모 ──\n\n';
+    allFree.forEach((m, i) => {
+      const label = m.sectionIdx === -1 ? '전체 메모' : getSectionShortName(m.sectionIdx);
+      text += `[${i+1}] ${label} · ${new Date(m.id).toLocaleString('ko-KR')}\n`;
+      text += `${m.text}\n\n`;
+    });
+  }
   const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'ICL75_암기노트.txt';
+  a.download = `ICL75_암기노트_${filterLabel}.txt`;
   a.click();
 }
 
@@ -685,7 +931,21 @@ function closeSidebar() {
 
 // ===== INIT =====
 buildNav();
+initFreeMemoTargets();
+renderFilterChips();
 renderMemos();
+renderFreeMemos();
+// Enable/disable free memo add button on input
+document.getElementById('freeMemoInput').addEventListener('input', function() {
+  document.getElementById('freeMemoAddBtn').disabled = !this.value.trim();
+});
+// Enter key to add free memo
+document.getElementById('freeMemoInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    if (this.value.trim()) addFreeMemo();
+  }
+});
 if (location.hash) {
   const m = location.hash.match(/ch(\d+)/i);
   if (m) loadChapter(parseInt(m[1]));
