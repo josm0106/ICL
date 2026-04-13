@@ -178,6 +178,27 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;bac
 .memo-export .btn-secondary{background:transparent;border:1px solid var(--border);color:var(--text2)}
 .memo-export .btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
 
+/* Sidebar memo preview per section */
+.section-memo-preview{display:none;padding:4px 12px 8px 28px;background:rgba(74,144,217,.04)}
+.section-memo-preview.has-memos{display:block}
+.section-memo-preview .smp-header{display:flex;align-items:center;justify-content:space-between;padding:4px 0;cursor:pointer;user-select:none}
+.section-memo-preview .smp-label{font-size:10px;color:var(--accent);font-weight:700;display:flex;align-items:center;gap:4px}
+.section-memo-preview .smp-count{font-size:9px;background:var(--accent);color:#fff;padding:1px 6px;border-radius:8px;font-weight:600}
+.section-memo-preview .smp-toggle{font-size:8px;color:var(--text3);transition:transform .2s}
+.section-memo-preview.expanded .smp-toggle{transform:rotate(90deg)}
+.section-memo-preview .smp-list{display:none;padding:2px 0 4px}
+.section-memo-preview.expanded .smp-list{display:block}
+.section-memo-preview .smp-item{font-size:10.5px;color:var(--text2);padding:3px 8px;margin:2px 0;border-left:2px solid #fdd835;border-radius:0 4px 4px 0;background:var(--dark2);line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:210px;cursor:pointer;transition:background .15s}
+.section-memo-preview .smp-item:hover{background:var(--dark3);color:var(--text)}
+.section-memo-preview .smp-item.free{border-left-color:var(--accent)}
+.section-memo-preview .smp-more{font-size:9.5px;color:var(--text3);padding:2px 8px;cursor:pointer;font-style:italic}
+.section-memo-preview .smp-more:hover{color:var(--accent)}
+
+/* Memo panel resize handle */
+.memo-resize-handle{width:5px;cursor:col-resize;background:transparent;position:absolute;left:0;top:0;bottom:0;z-index:10;transition:background .2s}
+.memo-resize-handle:hover,.memo-resize-handle.active{background:var(--accent)}
+.memo-panel{position:relative}
+
 .ch-views .view-reset{opacity:0;cursor:pointer;font-size:11px;color:var(--text3);margin-left:2px;transition:opacity .2s,color .2s}
 .chapter-item:hover .view-reset{opacity:1}
 .view-reset:hover{color:#f44!important}
@@ -281,6 +302,7 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;bac
 
 <!-- MEMO PANEL -->
 <div class="memo-panel" id="memoPanel">
+  <div class="memo-resize-handle" id="memoResizeHandle"></div>
   <div class="memo-panel-header">
     <h3>📋 암기노트</h3>
     <span class="memo-close" onclick="toggleMemo()">&times;</span>
@@ -459,13 +481,27 @@ function buildNav() {
       list.appendChild(item);
     });
 
+    // Memo preview per section
+    const memoPreview = document.createElement('div');
+    memoPreview.className = 'section-memo-preview';
+    memoPreview.setAttribute('data-sec-idx', idx);
+    memoPreview.innerHTML = `
+      <div class="smp-header" onclick="toggleSectionMemoPreview(this.parentElement)">
+        <span class="smp-label">📋 메모 <span class="smp-count">0</span></span>
+        <span class="smp-toggle">▶</span>
+      </div>
+      <div class="smp-list"></div>
+    `;
+
     group.appendChild(header);
     group.appendChild(list);
+    group.appendChild(memoPreview);
     navList.appendChild(group);
   });
 
   document.getElementById('statSections').textContent = totalSections;
   document.getElementById('statChapters').textContent = totalChapters;
+  renderSidebarMemoPreviews();
 }
 
 // ===== LOAD CHAPTER =====
@@ -626,6 +662,7 @@ function deleteMemo(id) {
 function saveMemos() {
   localStorage.setItem('icl75_memos', JSON.stringify(memos));
   document.getElementById('memoCount').textContent = memos.length + freeMemos.length;
+  renderSidebarMemoPreviews();
 }
 
 function renderMemos() {
@@ -701,6 +738,7 @@ function deleteFreeMemo(id) {
 function saveFreeMemos() {
   localStorage.setItem('icl75_freememos', JSON.stringify(freeMemos));
   document.getElementById('memoCount').textContent = memos.length + freeMemos.length;
+  renderSidebarMemoPreviews();
 }
 
 function renderFreeMemos() {
@@ -791,6 +829,95 @@ function exportMemos() {
 }
 
 function applyHighlights() {}
+
+// ===== SIDEBAR MEMO PREVIEWS =====
+function toggleSectionMemoPreview(el) {
+  el.classList.toggle('expanded');
+}
+
+function renderSidebarMemoPreviews() {
+  document.querySelectorAll('.section-memo-preview').forEach(preview => {
+    const secIdx = parseInt(preview.getAttribute('data-sec-idx'));
+    const hlMemos = memos.filter(m => getSectionForChapter(m.chapterNum) === secIdx);
+    const frMemos = freeMemos.filter(m => m.sectionIdx === secIdx);
+    const total = hlMemos.length + frMemos.length;
+    const countEl = preview.querySelector('.smp-count');
+    countEl.textContent = total;
+    if (total > 0) {
+      preview.classList.add('has-memos');
+    } else {
+      preview.classList.remove('has-memos');
+      preview.classList.remove('expanded');
+    }
+    // Build list (max 5 items shown)
+    const listEl = preview.querySelector('.smp-list');
+    listEl.innerHTML = '';
+    const allItems = [];
+    hlMemos.forEach(m => allItems.push({ type:'hl', text: m.text, id: m.id }));
+    frMemos.forEach(m => allItems.push({ type:'free', text: m.text, id: m.id }));
+    const maxShow = 5;
+    allItems.slice(0, maxShow).forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'smp-item' + (item.type === 'free' ? ' free' : '');
+      div.textContent = item.text;
+      div.title = item.text;
+      div.onclick = (e) => {
+        e.stopPropagation();
+        document.getElementById('memoPanel').classList.add('open');
+        currentMemoFilter = secIdx;
+        if (item.type === 'free') switchMemoTab('free');
+        else switchMemoTab('highlight');
+      };
+      listEl.appendChild(div);
+    });
+    if (allItems.length > maxShow) {
+      const more = document.createElement('div');
+      more.className = 'smp-more';
+      more.textContent = `+${allItems.length - maxShow}개 더보기`;
+      more.onclick = (e) => {
+        e.stopPropagation();
+        document.getElementById('memoPanel').classList.add('open');
+        currentMemoFilter = secIdx;
+        switchMemoTab('highlight');
+      };
+      listEl.appendChild(more);
+    }
+  });
+}
+
+// ===== MEMO PANEL RESIZE =====
+function initMemoResize() {
+  const panel = document.getElementById('memoPanel');
+  const handle = document.getElementById('memoResizeHandle');
+  if (!handle || !panel) return;
+  let startX, startW, isResizing = false;
+
+  handle.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    isResizing = true;
+    startX = e.clientX;
+    startW = panel.offsetWidth;
+    handle.classList.add('active');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isResizing) return;
+    const diff = startX - e.clientX;
+    const newW = Math.max(280, Math.min(800, startW + diff));
+    panel.style.width = newW + 'px';
+    panel.style.minWidth = newW + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!isResizing) return;
+    isResizing = false;
+    handle.classList.remove('active');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
+}
 
 // ===== TEXT SELECTION → MEMO =====
 document.addEventListener('mouseup', () => {
@@ -935,6 +1062,7 @@ initFreeMemoTargets();
 renderFilterChips();
 renderMemos();
 renderFreeMemos();
+initMemoResize();
 // Enable/disable free memo add button on input
 document.getElementById('freeMemoInput').addEventListener('input', function() {
   document.getElementById('freeMemoAddBtn').disabled = !this.value.trim();
