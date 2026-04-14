@@ -134,7 +134,7 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;bac
 .hl-purple{background:#E1BEE7;border-radius:2px;cursor:pointer;transition:background .15s;padding:1px 0}
 .hl-purple:hover{background:#CE93D8}
 /* Float popup (형광펜 + 메모 선택) */
-.float-popup{position:fixed;z-index:100;display:flex;align-items:center;gap:3px;padding:5px 8px;border-radius:10px;background:var(--dark);box-shadow:0 4px 20px rgba(0,0,0,.35);border:1px solid var(--border);animation:floatIn .15s ease}
+.float-popup{position:fixed;z-index:2147483647;display:flex;align-items:center;gap:3px;padding:5px 8px;border-radius:10px;background:var(--dark);box-shadow:0 4px 20px rgba(0,0,0,.35);border:1px solid var(--border);animation:floatIn .15s ease}
 @keyframes floatIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 .float-popup .hl-dot{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:transform .1s,border-color .15s;flex-shrink:0}
 .float-popup .hl-dot:hover{transform:scale(1.2);border-color:#fff}
@@ -147,7 +147,7 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;bac
 .float-popup .hl-memo-btn{padding:4px 10px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600;white-space:nowrap;transition:background .15s}
 .float-popup .hl-memo-btn:hover{background:#3a7bc8}
 /* Highlight remove tooltip */
-.hl-remove-popup{position:fixed;z-index:110;padding:6px 12px;border-radius:8px;background:var(--dark);box-shadow:0 4px 16px rgba(0,0,0,.35);border:1px solid var(--border);display:flex;align-items:center;gap:8px;animation:floatIn .12s ease}
+.hl-remove-popup{position:fixed;z-index:2147483647;padding:6px 12px;border-radius:8px;background:var(--dark);box-shadow:0 4px 16px rgba(0,0,0,.35);border:1px solid var(--border);display:flex;align-items:center;gap:8px;animation:floatIn .12s ease}
 .hl-remove-popup button{padding:4px 10px;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600;transition:background .15s}
 .hl-remove-popup .hl-rm-del{background:#f44336;color:#fff}
 .hl-remove-popup .hl-rm-del:hover{background:#d32f2f}
@@ -1122,7 +1122,7 @@ document.addEventListener('mouseup', (e) => {
   const popup = document.createElement('div');
   popup.id = 'floatPopup';
   popup.className = 'float-popup';
-  popup.style.top = (rect.top - 42) + 'px';
+  popup.style.top = (rect.bottom + 6) + 'px';
   popup.style.left = Math.max(8, rect.left + rect.width/2 - 100) + 'px';
 
   // Color dots
