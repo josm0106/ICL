@@ -1561,17 +1561,16 @@ document.addEventListener('mouseup', (e) => {
   popup.style.top = (rect.bottom + 6) + 'px';
   popup.style.left = Math.max(8, rect.left + rect.width/2 - 100) + 'px';
 
-  // Color dots
+  // Color dots — use onpointerdown for instant, reliable triggering
   HL_COLORS.forEach(color => {
     const dot = document.createElement('div');
     dot.className = 'hl-dot ' + color;
     dot.title = color + ' 형광펜';
-    dot.onmousedown = (ev) => { ev.preventDefault(); ev.stopPropagation(); };
-    dot.onclick = (ev) => {
+    dot.addEventListener('pointerdown', (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
+      ev.stopImmediatePropagation();
       const hlId = 'hl_' + Date.now();
-      // Save to data
       const chNum = currentChapter.num;
       if (!highlights[chNum]) highlights[chNum] = [];
       highlights[chNum].push({
@@ -1579,14 +1578,12 @@ document.addEventListener('mouseup', (e) => {
         startOffset: serialized.startOffset,
         endOffset: serialized.endOffset
       });
-      // Merge overlapping same-color highlights
       mergeHighlights(chNum);
       saveHighlights();
-      // Re-render all highlights for this chapter (clean approach)
       reRenderHighlights(chNum, contentEl);
       window.getSelection().removeAllRanges();
       removeFloatPopup();
-    };
+    });
     popup.appendChild(dot);
   });
 
@@ -1599,23 +1596,18 @@ document.addEventListener('mouseup', (e) => {
   const memoBtn = document.createElement('button');
   memoBtn.className = 'hl-memo-btn';
   memoBtn.textContent = '📋 메모';
-  memoBtn.onmousedown = (ev) => { ev.preventDefault(); ev.stopPropagation(); };
-  memoBtn.onclick = (ev) => {
+  memoBtn.addEventListener('pointerdown', (ev) => {
     ev.preventDefault();
+    ev.stopPropagation();
+    ev.stopImmediatePropagation();
     addMemo(text, currentChapter.num, currentChapter.title);
     removeFloatPopup();
     window.getSelection().removeAllRanges();
     document.getElementById('memoPanel').classList.add('open');
-  };
+  });
   popup.appendChild(memoBtn);
 
   document.body.appendChild(popup);
-  setTimeout(() => {
-    document.addEventListener('mousedown', function handler(ev) {
-      if (!popup.contains(ev.target)) { removeFloatPopup(); }
-      document.removeEventListener('mousedown', handler);
-    });
-  }, 50);
 });
 
 
