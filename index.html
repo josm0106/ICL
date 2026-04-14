@@ -1527,10 +1527,28 @@ function showHighlightRemovePopup(hlMark) {
   const popup = document.createElement('div');
   popup.id = 'hlRemovePopup';
   popup.className = 'hl-remove-popup';
-  popup.style.top = Math.max(4, rect.top - 38) + 'px';
-  popup.style.left = Math.max(8, rect.left + rect.width/2 - 60) + 'px';
+  popup.style.top = Math.max(4, rect.top - 42) + 'px';
+  popup.style.left = Math.max(8, rect.left + rect.width/2 - 90) + 'px';
   const hlId = hlMark.getAttribute('data-hl-id');
   const groupIds = getConnectedHighlightIds(hlId);
+  // Get highlight text for memo
+  const hlText = hlMark.textContent;
+
+  // Memo button
+  const memoBtn = document.createElement('button');
+  memoBtn.className = 'hl-rm-cancel';
+  memoBtn.style.cssText = 'background:var(--accent)!important;color:#fff!important';
+  memoBtn.textContent = '📋 메모';
+  memoBtn.addEventListener('pointerdown', (ev) => {
+    ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
+    if (currentChapter) {
+      addMemo(hlText, currentChapter.num, currentChapter.title);
+      document.getElementById('memoPanel').classList.add('open');
+    }
+    removeHlPopup();
+  });
+
+  // Delete button
   const delBtn = document.createElement('button');
   delBtn.className = 'hl-rm-del';
   delBtn.textContent = '🗑 삭제';
@@ -1538,13 +1556,17 @@ function showHighlightRemovePopup(hlMark) {
     ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
     removeHighlightGroup(groupIds);
   });
+
+  // Cancel button
   const cancelBtn = document.createElement('button');
   cancelBtn.className = 'hl-rm-cancel';
-  cancelBtn.textContent = '취소';
+  cancelBtn.textContent = '✕';
   cancelBtn.addEventListener('pointerdown', (ev) => {
     ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
     removeHlPopup();
   });
+
+  popup.appendChild(memoBtn);
   popup.appendChild(delBtn);
   popup.appendChild(cancelBtn);
   document.body.appendChild(popup);
