@@ -275,9 +275,16 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;bac
   .welcome h2{font-size:22px}
   .welcome .stats{gap:32px}
   .welcome .stat-num{font-size:30px}
-  .memo-panel.open{width:100%;min-width:100%}
+  .memo-panel.open{width:100%;min-width:100%;position:fixed;left:0;top:0;z-index:150}
   .section-header{font-size:13px;padding:12px 16px}
   .chapter-item{font-size:12px;padding:8px 16px 8px 28px}
+  /* Mobile memo FAB */
+  .mobile-memo-fab{display:flex!important}
+  /* Mobile-friendly float popup */
+  .float-popup{left:50%!important;transform:translateX(-50%);padding:8px 12px;gap:6px}
+  .float-popup .hl-dot{width:28px;height:28px}
+  .float-popup .hl-memo-btn{padding:6px 14px;font-size:12px}
+  .hl-remove-popup{left:50%!important;transform:translateX(-50%)}
 }
 @media(max-width:400px){
   .content-area{padding:12px 12px 70px}
@@ -309,6 +316,9 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;bac
 .sync-indicator.syncing{display:flex;background:var(--accent);color:#fff}
 .sync-indicator.synced{display:flex;background:#4caf50;color:#fff}
 .sync-indicator.error{display:flex;background:#f44;color:#fff}
+/* Mobile memo floating button */
+.mobile-memo-fab{display:none;position:fixed;bottom:20px;right:20px;z-index:140;width:52px;height:52px;border-radius:50%;background:var(--accent);color:#fff;border:none;font-size:22px;cursor:pointer;box-shadow:0 4px 16px rgba(74,144,217,.4);align-items:center;justify-content:center;transition:transform .15s}
+.mobile-memo-fab:active{transform:scale(.9)}
 </style>
 </head>
 <body>
@@ -331,6 +341,9 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;bac
 
 <!-- SYNC INDICATOR -->
 <div class="sync-indicator" id="syncIndicator"></div>
+
+<!-- MOBILE MEMO FAB -->
+<button class="mobile-memo-fab" onclick="toggleMemo()">📋</button>
 
 <!-- HAMBURGER (mobile) -->
 <button class="hamburger" id="hamburgerBtn" onclick="toggleSidebar()">☰</button>
@@ -1385,6 +1398,8 @@ function getTextNodesInRange(range) {
 }
 
 function restoreHighlightsForChapter(chNum) {
+  // Merge any old un-merged highlights first
+  mergeHighlights(chNum);
   const contentEl = document.getElementById('chapterContent');
   if (!contentEl) return;
   const chHighlights = highlights[chNum] || [];
@@ -1419,21 +1434,20 @@ function removeHighlightGroup(hlIds) {
   removeHlPopup();
 }
 
-// Find all highlight IDs that overlap/touch and share the same color
+// Find all highlight IDs that overlap/touch (any color)
 function getConnectedHighlightIds(hlId) {
   if (!currentChapter || !highlights[currentChapter.num]) return [hlId];
   const chHighlights = highlights[currentChapter.num];
   const target = chHighlights.find(h => h.id === hlId);
   if (!target) return [hlId];
 
-  // Find all same-color highlights that overlap or are adjacent (within 2 chars)
+  // Find all highlights (any color) that overlap or are adjacent (within 2 chars)
   const connected = new Set([hlId]);
   let changed = true;
   while (changed) {
     changed = false;
     chHighlights.forEach(h => {
-      if (connected.has(h.id) || h.color !== target.color) return;
-      // Check if h overlaps or touches any connected highlight
+      if (connected.has(h.id)) return;
       for (const cId of connected) {
         const c = chHighlights.find(x => x.id === cId);
         if (!c) continue;
@@ -1506,47 +1520,37 @@ function removeHlPopup() {
   if (r) r.remove();
 }
 
-document.addEventListener('mouseup', (e) => {
-  // Ignore if clicking inside our popups
-  const floatPopup = document.getElementById('floatPopup');
-  const hlRemovePopup = document.getElementById('hlRemovePopup');
-  if (floatPopup && floatPopup.contains(e.target)) return;
-  if (hlRemovePopup && hlRemovePopup.contains(e.target)) return;
+// ===== HIGHLIGHT POPUP LOGIC (desktop + mobile) =====
+function showHighlightRemovePopup(hlMark) {
+  removeFloatPopup();
+  const rect = hlMark.getBoundingClientRect();
+  const popup = document.createElement('div');
+  popup.id = 'hlRemovePopup';
+  popup.className = 'hl-remove-popup';
+  popup.style.top = Math.max(4, rect.top - 38) + 'px';
+  popup.style.left = Math.max(8, rect.left + rect.width/2 - 60) + 'px';
+  const hlId = hlMark.getAttribute('data-hl-id');
+  const groupIds = getConnectedHighlightIds(hlId);
+  const delBtn = document.createElement('button');
+  delBtn.className = 'hl-rm-del';
+  delBtn.textContent = '🗑 삭제';
+  delBtn.addEventListener('pointerdown', (ev) => {
+    ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
+    removeHighlightGroup(groupIds);
+  });
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'hl-rm-cancel';
+  cancelBtn.textContent = '취소';
+  cancelBtn.addEventListener('pointerdown', (ev) => {
+    ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
+    removeHlPopup();
+  });
+  popup.appendChild(delBtn);
+  popup.appendChild(cancelBtn);
+  document.body.appendChild(popup);
+}
 
-  // Check if clicking on existing highlight → show remove popup
-  const hlMark = e.target.closest('mark[data-hl-id]');
-  if (hlMark && !window.getSelection().toString().trim()) {
-    removeFloatPopup();
-    const rect = hlMark.getBoundingClientRect();
-    const popup = document.createElement('div');
-    popup.id = 'hlRemovePopup';
-    popup.className = 'hl-remove-popup';
-    popup.style.top = (rect.top - 38) + 'px';
-    popup.style.left = (rect.left + rect.width/2 - 60) + 'px';
-    // Find ALL highlight IDs connected to this color group
-    const hlId = hlMark.getAttribute('data-hl-id');
-    const groupIds = getConnectedHighlightIds(hlId);
-    const delBtn = document.createElement('button');
-    delBtn.className = 'hl-rm-del';
-    delBtn.textContent = '🗑 삭제';
-    delBtn.addEventListener('pointerdown', (ev) => {
-      ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
-      removeHighlightGroup(groupIds);
-    });
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'hl-rm-cancel';
-    cancelBtn.textContent = '취소';
-    cancelBtn.addEventListener('pointerdown', (ev) => {
-      ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
-      removeHlPopup();
-    });
-    popup.appendChild(delBtn);
-    popup.appendChild(cancelBtn);
-    document.body.appendChild(popup);
-    return;
-  }
-
-  // Normal text selection → show highlight + memo popup
+function showHighlightPopup() {
   const sel = window.getSelection();
   const text = sel.toString().trim();
   if (!text || text.length < 2 || !currentChapter) return;
@@ -1554,28 +1558,27 @@ document.addEventListener('mouseup', (e) => {
   if (!anchor) return;
   const contentEl = document.getElementById('chapterContent');
   if (!contentEl || !contentEl.contains(anchor)) return;
+  if (sel.rangeCount === 0) return;
 
   removeFloatPopup();
   const range = sel.getRangeAt(0);
   const serialized = serializeRange(range, contentEl);
   if (serialized.startOffset < 0 || serialized.endOffset < 0) return;
   const rect = range.getBoundingClientRect();
+  if (rect.width === 0 && rect.height === 0) return;
 
   const popup = document.createElement('div');
   popup.id = 'floatPopup';
   popup.className = 'float-popup';
-  popup.style.top = (rect.bottom + 6) + 'px';
-  popup.style.left = Math.max(8, rect.left + rect.width/2 - 100) + 'px';
+  popup.style.top = Math.max(4, rect.bottom + 6) + 'px';
+  popup.style.left = Math.max(8, Math.min(window.innerWidth - 210, rect.left + rect.width/2 - 100)) + 'px';
 
-  // Color dots — use onpointerdown for instant, reliable triggering
   HL_COLORS.forEach(color => {
     const dot = document.createElement('div');
     dot.className = 'hl-dot ' + color;
     dot.title = color + ' 형광펜';
     dot.addEventListener('pointerdown', (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      ev.stopImmediatePropagation();
+      ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
       const hlId = 'hl_' + Date.now();
       const chNum = currentChapter.num;
       if (!highlights[chNum]) highlights[chNum] = [];
@@ -1593,27 +1596,75 @@ document.addEventListener('mouseup', (e) => {
     popup.appendChild(dot);
   });
 
-  // Divider
   const divider = document.createElement('div');
   divider.className = 'hl-divider';
   popup.appendChild(divider);
 
-  // Memo button
   const memoBtn = document.createElement('button');
   memoBtn.className = 'hl-memo-btn';
   memoBtn.textContent = '📋 메모';
   memoBtn.addEventListener('pointerdown', (ev) => {
-    ev.preventDefault();
-    ev.stopPropagation();
-    ev.stopImmediatePropagation();
+    ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
     addMemo(text, currentChapter.num, currentChapter.title);
     removeFloatPopup();
     window.getSelection().removeAllRanges();
     document.getElementById('memoPanel').classList.add('open');
   });
   popup.appendChild(memoBtn);
-
   document.body.appendChild(popup);
+}
+
+// Desktop: mouseup
+document.addEventListener('mouseup', (e) => {
+  const fp = document.getElementById('floatPopup');
+  const rp = document.getElementById('hlRemovePopup');
+  if (fp && fp.contains(e.target)) return;
+  if (rp && rp.contains(e.target)) return;
+
+  const hlMark = e.target.closest('mark[data-hl-id]');
+  if (hlMark && !window.getSelection().toString().trim()) {
+    showHighlightRemovePopup(hlMark);
+    return;
+  }
+  // Small delay so selection is finalized
+  setTimeout(() => showHighlightPopup(), 10);
+});
+
+// Mobile: selectionchange (fires when user adjusts selection handles on touch)
+let selChangeTimer = null;
+document.addEventListener('selectionchange', () => {
+  // Only on touch devices
+  if (!('ontouchstart' in window)) return;
+  clearTimeout(selChangeTimer);
+  selChangeTimer = setTimeout(() => {
+    const sel = window.getSelection();
+    const text = sel.toString().trim();
+    if (text && text.length >= 2 && currentChapter) {
+      showHighlightPopup();
+    }
+  }, 400);
+});
+
+// Tap on highlight to delete (mobile)
+document.addEventListener('touchend', (e) => {
+  const fp = document.getElementById('floatPopup');
+  const rp = document.getElementById('hlRemovePopup');
+  if (fp && fp.contains(e.target)) return;
+  if (rp && rp.contains(e.target)) return;
+
+  const hlMark = e.target.closest('mark[data-hl-id]');
+  if (hlMark && !window.getSelection().toString().trim()) {
+    e.preventDefault();
+    showHighlightRemovePopup(hlMark);
+  }
+});
+
+// Close popups on tap/click outside
+document.addEventListener('pointerdown', (e) => {
+  const fp = document.getElementById('floatPopup');
+  const rp = document.getElementById('hlRemovePopup');
+  if (fp && !fp.contains(e.target)) removeFloatPopup();
+  if (rp && !rp.contains(e.target)) removeHlPopup();
 });
 
 
