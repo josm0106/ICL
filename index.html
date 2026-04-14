@@ -123,26 +123,26 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;bac
 
 /* ====== HIGHLIGHT (형광펜 + 암기노트) ====== */
 ::selection{background:rgba(74,144,217,.25)}
-.hl-yellow{background:rgba(255,235,59,.40);border-radius:2px;cursor:pointer;transition:background .15s}
-.hl-yellow:hover{background:rgba(255,235,59,.65)}
-.hl-green{background:rgba(76,175,80,.30);border-radius:2px;cursor:pointer;transition:background .15s}
-.hl-green:hover{background:rgba(76,175,80,.50)}
-.hl-blue{background:rgba(66,165,245,.30);border-radius:2px;cursor:pointer;transition:background .15s}
-.hl-blue:hover{background:rgba(66,165,245,.50)}
-.hl-pink{background:rgba(240,98,146,.28);border-radius:2px;cursor:pointer;transition:background .15s}
-.hl-pink:hover{background:rgba(240,98,146,.48)}
-.hl-orange{background:rgba(255,167,38,.32);border-radius:2px;cursor:pointer;transition:background .15s}
-.hl-orange:hover{background:rgba(255,167,38,.52)}
+.hl-yellow{background:#FFF9C4;border-radius:2px;cursor:pointer;transition:background .15s;padding:1px 0}
+.hl-yellow:hover{background:#FFF176}
+.hl-green{background:#C8E6C9;border-radius:2px;cursor:pointer;transition:background .15s;padding:1px 0}
+.hl-green:hover{background:#A5D6A7}
+.hl-blue{background:#BBDEFB;border-radius:2px;cursor:pointer;transition:background .15s;padding:1px 0}
+.hl-blue:hover{background:#90CAF9}
+.hl-pink{background:#F8BBD0;border-radius:2px;cursor:pointer;transition:background .15s;padding:1px 0}
+.hl-pink:hover{background:#F48FB1}
+.hl-purple{background:#E1BEE7;border-radius:2px;cursor:pointer;transition:background .15s;padding:1px 0}
+.hl-purple:hover{background:#CE93D8}
 /* Float popup (형광펜 + 메모 선택) */
 .float-popup{position:fixed;z-index:100;display:flex;align-items:center;gap:3px;padding:5px 8px;border-radius:10px;background:var(--dark);box-shadow:0 4px 20px rgba(0,0,0,.35);border:1px solid var(--border);animation:floatIn .15s ease}
 @keyframes floatIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 .float-popup .hl-dot{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:transform .1s,border-color .15s;flex-shrink:0}
 .float-popup .hl-dot:hover{transform:scale(1.2);border-color:#fff}
-.float-popup .hl-dot.yellow{background:#fdd835}
-.float-popup .hl-dot.green{background:#66bb6a}
-.float-popup .hl-dot.blue{background:#42a5f5}
-.float-popup .hl-dot.pink{background:#f06292}
-.float-popup .hl-dot.orange{background:#ffa726}
+.float-popup .hl-dot.yellow{background:#FFF176}
+.float-popup .hl-dot.green{background:#A5D6A7}
+.float-popup .hl-dot.blue{background:#90CAF9}
+.float-popup .hl-dot.pink{background:#F48FB1}
+.float-popup .hl-dot.purple{background:#CE93D8}
 .float-popup .hl-divider{width:1px;height:18px;background:var(--border);margin:0 4px}
 .float-popup .hl-memo-btn{padding:4px 10px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600;white-space:nowrap;transition:background .15s}
 .float-popup .hl-memo-btn:hover{background:#3a7bc8}
@@ -950,7 +950,7 @@ function initMemoResize() {
 
 // ===== HIGHLIGHT (형광펜) SYSTEM =====
 let highlights = JSON.parse(localStorage.getItem('icl75_highlights') || '{}');
-const HL_COLORS = ['yellow','green','blue','pink','orange'];
+const HL_COLORS = ['yellow','green','blue','pink','purple'];
 
 function saveHighlights() {
   localStorage.setItem('icl75_highlights', JSON.stringify(highlights));
@@ -1115,6 +1115,8 @@ document.addEventListener('mouseup', (e) => {
 
   removeFloatPopup();
   const range = sel.getRangeAt(0);
+  const savedRange = range.cloneRange();
+  const serialized = serializeRange(range, contentEl);
   const rect = range.getBoundingClientRect();
 
   const popup = document.createElement('div');
@@ -1128,13 +1130,12 @@ document.addEventListener('mouseup', (e) => {
     const dot = document.createElement('div');
     dot.className = 'hl-dot ' + color;
     dot.title = color + ' 형광펜';
-    dot.onclick = () => {
-      const selNow = window.getSelection();
-      if (!selNow.rangeCount) return;
-      const r = selNow.getRangeAt(0);
-      const serialized = serializeRange(r, contentEl);
+    dot.onmousedown = (ev) => { ev.preventDefault(); ev.stopPropagation(); };
+    dot.onclick = (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
       const hlId = 'hl_' + Date.now();
-      applyHighlightToRange(r, color, hlId);
+      applyHighlightToRange(savedRange, color, hlId);
       // Save
       if (!highlights[currentChapter.num]) highlights[currentChapter.num] = [];
       highlights[currentChapter.num].push({
@@ -1143,7 +1144,7 @@ document.addEventListener('mouseup', (e) => {
         endOffset: serialized.endOffset
       });
       saveHighlights();
-      selNow.removeAllRanges();
+      window.getSelection().removeAllRanges();
       removeFloatPopup();
     };
     popup.appendChild(dot);
@@ -1158,10 +1159,12 @@ document.addEventListener('mouseup', (e) => {
   const memoBtn = document.createElement('button');
   memoBtn.className = 'hl-memo-btn';
   memoBtn.textContent = '📋 메모';
-  memoBtn.onclick = () => {
+  memoBtn.onmousedown = (ev) => { ev.preventDefault(); ev.stopPropagation(); };
+  memoBtn.onclick = (ev) => {
+    ev.preventDefault();
     addMemo(text, currentChapter.num, currentChapter.title);
     removeFloatPopup();
-    sel.removeAllRanges();
+    window.getSelection().removeAllRanges();
     document.getElementById('memoPanel').classList.add('open');
   };
   popup.appendChild(memoBtn);
