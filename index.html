@@ -569,6 +569,20 @@ function doLogout() {
   location.reload();
 }
 
+// One-time password change: run from console or auto-trigger
+function changePassword(oldPw, newPw) {
+  const user = auth.currentUser;
+  if (!user) { alert('먼저 로그인하세요'); return; }
+  const cred = firebase.auth.EmailAuthProvider.credential(user.email, oldPw);
+  user.reauthenticateWithCredential(cred).then(() => {
+    return user.updatePassword(newPw);
+  }).then(() => {
+    alert('비밀번호가 변경되었습니다!');
+  }).catch(err => {
+    alert('비밀번호 변경 실패: ' + err.message);
+  });
+}
+
 // ===== AUTH STATE LISTENER =====
 auth.onAuthStateChanged(user => {
   if (offlineMode) return; // Don't interfere with offline mode
