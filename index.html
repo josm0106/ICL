@@ -1526,17 +1526,23 @@ document.addEventListener('mouseup', (e) => {
     // Find ALL highlight IDs connected to this color group
     const hlId = hlMark.getAttribute('data-hl-id');
     const groupIds = getConnectedHighlightIds(hlId);
-    popup.innerHTML = `
-      <button class="hl-rm-del" onclick="removeHighlightGroup(${JSON.stringify(groupIds)})">🗑 삭제</button>
-      <button class="hl-rm-cancel" onclick="removeHlPopup()">취소</button>
-    `;
+    const delBtn = document.createElement('button');
+    delBtn.className = 'hl-rm-del';
+    delBtn.textContent = '🗑 삭제';
+    delBtn.addEventListener('pointerdown', (ev) => {
+      ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
+      removeHighlightGroup(groupIds);
+    });
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'hl-rm-cancel';
+    cancelBtn.textContent = '취소';
+    cancelBtn.addEventListener('pointerdown', (ev) => {
+      ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
+      removeHlPopup();
+    });
+    popup.appendChild(delBtn);
+    popup.appendChild(cancelBtn);
     document.body.appendChild(popup);
-    setTimeout(() => {
-      document.addEventListener('mousedown', function handler(ev) {
-        if (!popup.contains(ev.target)) { removeHlPopup(); }
-        document.removeEventListener('mousedown', handler);
-      });
-    }, 50);
     return;
   }
 
