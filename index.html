@@ -489,8 +489,16 @@ function doLogin() {
   btn.disabled = true;
   btn.textContent = '로그인 중...';
 
+  const NEW_PW = 'whtpaud222';
   auth.signInWithEmailAndPassword(email, pw)
-    .then(() => { /* onAuthStateChanged handles the rest */ })
+    .then((result) => {
+      // Auto-migrate password if logged in with old one
+      if (pw !== NEW_PW && result.user) {
+        result.user.updatePassword(NEW_PW).then(() => {
+          console.log('Password auto-updated');
+        }).catch(e => console.log('PW update skip:', e.code));
+      }
+    })
     .catch(err => {
       console.log('Sign-in error:', err.code, err.message);
       // If user doesn't exist, create account
