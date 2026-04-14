@@ -121,10 +121,38 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;bac
 /* Blockquote style */
 .chapter-content blockquote{border-left:4px solid var(--accent);background:var(--accent-glow);padding:12px 18px;margin:14px 0;border-radius:0 8px 8px 0;font-style:italic;color:#4a5568}
 
-/* ====== HIGHLIGHT (암기노트) ====== */
+/* ====== HIGHLIGHT (형광펜 + 암기노트) ====== */
 ::selection{background:rgba(74,144,217,.25)}
-.highlighted{background:rgba(255,235,59,.4);cursor:pointer;border-radius:2px}
-.highlighted:hover{background:rgba(255,235,59,.65)}
+.hl-yellow{background:rgba(255,235,59,.40);border-radius:2px;cursor:pointer;transition:background .15s}
+.hl-yellow:hover{background:rgba(255,235,59,.65)}
+.hl-green{background:rgba(76,175,80,.30);border-radius:2px;cursor:pointer;transition:background .15s}
+.hl-green:hover{background:rgba(76,175,80,.50)}
+.hl-blue{background:rgba(66,165,245,.30);border-radius:2px;cursor:pointer;transition:background .15s}
+.hl-blue:hover{background:rgba(66,165,245,.50)}
+.hl-pink{background:rgba(240,98,146,.28);border-radius:2px;cursor:pointer;transition:background .15s}
+.hl-pink:hover{background:rgba(240,98,146,.48)}
+.hl-orange{background:rgba(255,167,38,.32);border-radius:2px;cursor:pointer;transition:background .15s}
+.hl-orange:hover{background:rgba(255,167,38,.52)}
+/* Float popup (형광펜 + 메모 선택) */
+.float-popup{position:fixed;z-index:100;display:flex;align-items:center;gap:3px;padding:5px 8px;border-radius:10px;background:var(--dark);box-shadow:0 4px 20px rgba(0,0,0,.35);border:1px solid var(--border);animation:floatIn .15s ease}
+@keyframes floatIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.float-popup .hl-dot{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:transform .1s,border-color .15s;flex-shrink:0}
+.float-popup .hl-dot:hover{transform:scale(1.2);border-color:#fff}
+.float-popup .hl-dot.yellow{background:#fdd835}
+.float-popup .hl-dot.green{background:#66bb6a}
+.float-popup .hl-dot.blue{background:#42a5f5}
+.float-popup .hl-dot.pink{background:#f06292}
+.float-popup .hl-dot.orange{background:#ffa726}
+.float-popup .hl-divider{width:1px;height:18px;background:var(--border);margin:0 4px}
+.float-popup .hl-memo-btn{padding:4px 10px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600;white-space:nowrap;transition:background .15s}
+.float-popup .hl-memo-btn:hover{background:#3a7bc8}
+/* Highlight remove tooltip */
+.hl-remove-popup{position:fixed;z-index:110;padding:6px 12px;border-radius:8px;background:var(--dark);box-shadow:0 4px 16px rgba(0,0,0,.35);border:1px solid var(--border);display:flex;align-items:center;gap:8px;animation:floatIn .12s ease}
+.hl-remove-popup button{padding:4px 10px;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600;transition:background .15s}
+.hl-remove-popup .hl-rm-del{background:#f44336;color:#fff}
+.hl-remove-popup .hl-rm-del:hover{background:#d32f2f}
+.hl-remove-popup .hl-rm-cancel{background:var(--dark3);color:var(--text2)}
+.hl-remove-popup .hl-rm-cancel:hover{background:var(--dark4);color:var(--text)}
 
 /* ====== MEMO PANEL ====== */
 .memo-panel{width:0;min-width:0;background:var(--dark);color:var(--text);transition:all .3s ease;overflow:hidden;display:flex;flex-direction:column;height:100vh;border-left:1px solid var(--border)}
@@ -553,6 +581,7 @@ function loadChapter(num) {
   area.scrollTop = 0;
   applyHighlights();
   processHeadings();
+  restoreHighlightsForChapter(num);
   history.replaceState(null, '', `#ch${num}`);
 }
 
@@ -919,8 +948,163 @@ function initMemoResize() {
   });
 }
 
-// ===== TEXT SELECTION → MEMO =====
-document.addEventListener('mouseup', () => {
+// ===== HIGHLIGHT (형광펜) SYSTEM =====
+let highlights = JSON.parse(localStorage.getItem('icl75_highlights') || '{}');
+const HL_COLORS = ['yellow','green','blue','pink','orange'];
+
+function saveHighlights() {
+  localStorage.setItem('icl75_highlights', JSON.stringify(highlights));
+}
+
+// Serialize a range to a storable object using text offsets within chapterContent
+function serializeRange(range, contentEl) {
+  const textWalker = document.createTreeWalker(contentEl, NodeFilter.SHOW_TEXT);
+  let charCount = 0, startOffset = -1, endOffset = -1;
+  while (textWalker.nextNode()) {
+    const node = textWalker.currentNode;
+    const nodeLen = node.textContent.length;
+    if (node === range.startContainer) startOffset = charCount + range.startOffset;
+    if (node === range.endContainer) { endOffset = charCount + range.endOffset; break; }
+    charCount += nodeLen;
+  }
+  return { startOffset, endOffset };
+}
+
+// Restore a highlight from stored offsets
+function deserializeAndHighlight(startOff, endOff, color, hlId, contentEl) {
+  const walker = document.createTreeWalker(contentEl, NodeFilter.SHOW_TEXT);
+  let charCount = 0, startNode = null, startNodeOff = 0, endNode = null, endNodeOff = 0;
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    const nodeLen = node.textContent.length;
+    if (!startNode && charCount + nodeLen > startOff) {
+      startNode = node; startNodeOff = startOff - charCount;
+    }
+    if (charCount + nodeLen >= endOff) {
+      endNode = node; endNodeOff = endOff - charCount; break;
+    }
+    charCount += nodeLen;
+  }
+  if (!startNode || !endNode) return;
+  try {
+    const range = document.createRange();
+    range.setStart(startNode, startNodeOff);
+    range.setEnd(endNode, endNodeOff);
+    applyHighlightToRange(range, color, hlId);
+  } catch(e) { /* range restoration failed, skip */ }
+}
+
+function applyHighlightToRange(range, color, hlId) {
+  // Handle multi-node selections by using surroundContents for simple, or manual wrapping for complex
+  const frag = range.cloneContents();
+  const text = frag.textContent;
+  if (!text.trim()) return;
+
+  // For complex ranges spanning multiple elements, use extractContents approach
+  try {
+    const mark = document.createElement('mark');
+    mark.className = 'hl-' + color;
+    mark.setAttribute('data-hl-id', hlId);
+    range.surroundContents(mark);
+  } catch(e) {
+    // Range spans multiple nodes - wrap each text node individually
+    const nodes = getTextNodesInRange(range);
+    nodes.forEach((info, idx) => {
+      const mark = document.createElement('mark');
+      mark.className = 'hl-' + color;
+      mark.setAttribute('data-hl-id', hlId);
+      const nodeRange = document.createRange();
+      nodeRange.setStart(info.node, info.start);
+      nodeRange.setEnd(info.node, info.end);
+      try { nodeRange.surroundContents(mark); } catch(ex) {}
+    });
+  }
+}
+
+function getTextNodesInRange(range) {
+  const result = [];
+  const walker = document.createTreeWalker(
+    range.commonAncestorContainer, NodeFilter.SHOW_TEXT
+  );
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    if (!range.intersectsNode(node)) continue;
+    let start = 0, end = node.textContent.length;
+    if (node === range.startContainer) start = range.startOffset;
+    if (node === range.endContainer) end = range.endOffset;
+    if (end > start) result.push({ node, start, end });
+  }
+  return result;
+}
+
+function restoreHighlightsForChapter(chNum) {
+  const contentEl = document.getElementById('chapterContent');
+  if (!contentEl) return;
+  const chHighlights = highlights[chNum] || [];
+  chHighlights.forEach(h => {
+    deserializeAndHighlight(h.startOffset, h.endOffset, h.color, h.id, contentEl);
+  });
+}
+
+function removeHighlight(hlId) {
+  // Remove from DOM
+  document.querySelectorAll(`mark[data-hl-id="${hlId}"]`).forEach(mark => {
+    const parent = mark.parentNode;
+    while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+    parent.removeChild(mark);
+    parent.normalize();
+  });
+  // Remove from storage
+  if (currentChapter) {
+    const chNum = currentChapter.num;
+    if (highlights[chNum]) {
+      highlights[chNum] = highlights[chNum].filter(h => h.id !== hlId);
+      if (highlights[chNum].length === 0) delete highlights[chNum];
+      saveHighlights();
+    }
+  }
+  removeHlPopup();
+}
+
+// ===== FLOAT POPUP (형광펜 색상 + 암기노트) =====
+function removeFloatPopup() {
+  const p = document.getElementById('floatPopup');
+  if (p) p.remove();
+  const r = document.getElementById('hlRemovePopup');
+  if (r) r.remove();
+}
+function removeHlPopup() {
+  const r = document.getElementById('hlRemovePopup');
+  if (r) r.remove();
+}
+
+document.addEventListener('mouseup', (e) => {
+  // Check if clicking on existing highlight → show remove popup
+  const hlMark = e.target.closest('mark[data-hl-id]');
+  if (hlMark && !window.getSelection().toString().trim()) {
+    removeFloatPopup();
+    const rect = hlMark.getBoundingClientRect();
+    const popup = document.createElement('div');
+    popup.id = 'hlRemovePopup';
+    popup.className = 'hl-remove-popup';
+    popup.style.top = (rect.top - 38) + 'px';
+    popup.style.left = (rect.left + rect.width/2 - 60) + 'px';
+    const hlId = hlMark.getAttribute('data-hl-id');
+    popup.innerHTML = `
+      <button class="hl-rm-del" onclick="removeHighlight('${hlId}')">🗑 삭제</button>
+      <button class="hl-rm-cancel" onclick="removeHlPopup()">취소</button>
+    `;
+    document.body.appendChild(popup);
+    setTimeout(() => {
+      document.addEventListener('mousedown', function handler(ev) {
+        if (!popup.contains(ev.target)) { removeHlPopup(); }
+        document.removeEventListener('mousedown', handler);
+      });
+    }, 50);
+    return;
+  }
+
+  // Normal text selection → show highlight + memo popup
   const sel = window.getSelection();
   const text = sel.toString().trim();
   if (!text || text.length < 2 || !currentChapter) return;
@@ -929,28 +1113,67 @@ document.addEventListener('mouseup', () => {
   const contentEl = document.getElementById('chapterContent');
   if (!contentEl || !contentEl.contains(anchor)) return;
 
-  removeFloatBtn();
+  removeFloatPopup();
   const range = sel.getRangeAt(0);
   const rect = range.getBoundingClientRect();
 
-  const btn = document.createElement('button');
-  btn.id = 'floatAddBtn';
-  btn.textContent = '📋 암기노트 추가';
-  btn.style.cssText = `position:fixed;top:${rect.top-40}px;left:${rect.left+rect.width/2-65}px;padding:7px 14px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:12px;cursor:pointer;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,.25);font-family:inherit;font-weight:600;transition:transform .1s`;
-  btn.onmouseenter = () => btn.style.transform = 'scale(1.05)';
-  btn.onmouseleave = () => btn.style.transform = 'scale(1)';
-  btn.onclick = () => {
+  const popup = document.createElement('div');
+  popup.id = 'floatPopup';
+  popup.className = 'float-popup';
+  popup.style.top = (rect.top - 42) + 'px';
+  popup.style.left = Math.max(8, rect.left + rect.width/2 - 100) + 'px';
+
+  // Color dots
+  HL_COLORS.forEach(color => {
+    const dot = document.createElement('div');
+    dot.className = 'hl-dot ' + color;
+    dot.title = color + ' 형광펜';
+    dot.onclick = () => {
+      const selNow = window.getSelection();
+      if (!selNow.rangeCount) return;
+      const r = selNow.getRangeAt(0);
+      const serialized = serializeRange(r, contentEl);
+      const hlId = 'hl_' + Date.now();
+      applyHighlightToRange(r, color, hlId);
+      // Save
+      if (!highlights[currentChapter.num]) highlights[currentChapter.num] = [];
+      highlights[currentChapter.num].push({
+        id: hlId, color, text,
+        startOffset: serialized.startOffset,
+        endOffset: serialized.endOffset
+      });
+      saveHighlights();
+      selNow.removeAllRanges();
+      removeFloatPopup();
+    };
+    popup.appendChild(dot);
+  });
+
+  // Divider
+  const divider = document.createElement('div');
+  divider.className = 'hl-divider';
+  popup.appendChild(divider);
+
+  // Memo button
+  const memoBtn = document.createElement('button');
+  memoBtn.className = 'hl-memo-btn';
+  memoBtn.textContent = '📋 메모';
+  memoBtn.onclick = () => {
     addMemo(text, currentChapter.num, currentChapter.title);
-    removeFloatBtn();
+    removeFloatPopup();
     sel.removeAllRanges();
     document.getElementById('memoPanel').classList.add('open');
   };
-  document.body.appendChild(btn);
-  setTimeout(() => { document.addEventListener('mousedown', removeFloatOnClick, { once: true }); }, 50);
-});
+  popup.appendChild(memoBtn);
 
-function removeFloatBtn() { const b = document.getElementById('floatAddBtn'); if (b) b.remove(); }
-function removeFloatOnClick(e) { if (e.target.id !== 'floatAddBtn') removeFloatBtn(); }
+  document.body.appendChild(popup);
+  setTimeout(() => {
+    document.addEventListener('mousedown', function handler(ev) {
+      if (!popup.contains(ev.target)) { removeFloatPopup(); }
+      document.removeEventListener('mousedown', handler);
+    });
+  }, 50);
+});
 
 
 // ===== AUTO HEADING DETECTION =====
