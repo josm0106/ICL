@@ -54,6 +54,8 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;bac
 .chapter-item .ch-views{font-size:10px;color:var(--text3);margin-top:2px;padding-left:25px;display:flex;align-items:center;gap:6px}
 .chapter-item .ch-views .view-badge{color:var(--accent);font-weight:600}
 .chapter-item .ch-views .view-time{color:var(--text3)}
+.chapter-item .ch-views .view-minus{color:#aaa;font-size:12px;cursor:pointer;padding:0 3px;border-radius:4px;transition:all .15s;font-weight:700;line-height:1}
+.chapter-item .ch-views .view-minus:hover{color:#e74c3c;background:rgba(231,76,60,.1)}
 
 /* Memo Toggle */
 .memo-toggle{position:fixed;bottom:0;left:0;width:var(--sidebar-w);padding:12px 16px;background:var(--dark);border-top:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text);z-index:10;transition:background .15s}
@@ -90,6 +92,8 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;bac
 .chapter-meta .meta-title{font-size:20px;font-weight:800;color:var(--heading1);margin-bottom:6px;line-height:1.35;letter-spacing:-.3px}
 .chapter-meta .meta-info{font-size:12.5px;color:#6a7585;line-height:1.6}
 .chapter-meta .meta-views{display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:3px 10px;background:rgba(74,144,217,.1);border-radius:12px;font-size:11px;color:var(--accent);font-weight:600}
+.chapter-meta .meta-views .meta-minus-btn{background:none;border:1px solid rgba(74,144,217,.3);color:var(--accent);padding:1px 7px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;transition:all .15s;margin-left:4px}
+.chapter-meta .meta-views .meta-minus-btn:hover{background:var(--accent);color:#fff}
 
 /* Headings - BOLD & clear hierarchy */
 .chapter-content h2{font-size:21px;font-weight:800;color:var(--heading1);margin:36px 0 14px;padding:10px 0 10px 16px;border-left:4px solid var(--accent);background:linear-gradient(90deg,rgba(74,144,217,.06) 0%,transparent 80%);border-radius:0 6px 6px 0;letter-spacing:-.3px;line-height:1.35}
@@ -810,7 +814,7 @@ function updateViewBadge(chNum) {
   if (!el) return;
   const v = viewData[chNum];
   if (v && v.count > 0) {
-    el.innerHTML = `<span class="view-badge">${v.count}회</span><span class="view-time">${timeAgo(v.lastViewed)}</span><span class="view-reset" onclick="resetChapterView(${chNum}, event)" title="이 단원 조회수 초기화">✕</span>`;
+    el.innerHTML = `<span class="view-badge">${v.count}회</span><span class="view-time">${timeAgo(v.lastViewed)}</span><span class="view-minus" onclick="decrementChapterView(${chNum}, event)" title="조회수 1회 차감">−</span><span class="view-reset" onclick="resetChapterView(${chNum}, event)" title="이 단원 조회수 초기화">✕</span>`;
   } else {
     el.innerHTML = '';
   }
@@ -831,10 +835,42 @@ function resetChapterView(chNum, e) {
   delete viewData[chNum];
   syncToCloud();
   updateViewBadge(chNum);
-  // Refresh meta if this chapter is currently displayed
-  if (currentChapter && currentChapter.num == chNum) {
-    const metaViews = document.querySelector('.chapter-meta .meta-views');
-    if (metaViews) metaViews.remove();
+  refreshChapterMeta(chNum);
+}
+
+function decrementChapterView(chNum, e) {
+  if (e) { e.stopPropagation(); e.preventDefault(); }
+  if (!viewData[chNum] || viewData[chNum].count <= 0) return;
+  viewData[chNum].count--;
+  if (viewData[chNum].count <= 0) {
+    delete viewData[chNum];
+  }
+  syncToCloud();
+  updateViewBadge(chNum);
+  refreshChapterMeta(chNum);
+}
+
+function refreshChapterMeta(chNum) {
+  if (!currentChapter || currentChapter.num != chNum) return;
+  const v = viewData[chNum];
+  const oldMeta = document.querySelector('.chapter-meta .meta-views');
+  if (v && v.count > 0) {
+    const html = `👁 ${v.count}회 열람 · ${timeAgo(v.lastViewed)}<button class="meta-minus-btn" onclick="decrementChapterView(${chNum}, event)" title="조회수 1회 차감">−1</button><button class="meta-reset-btn" onclick="resetChapterView(${chNum}, event)">✕ 초기화</button>`;
+    if (oldMeta) {
+      oldMeta.innerHTML = html;
+    } else {
+      const metaDiv = document.querySelector('.chapter-meta');
+      if (metaDiv) {
+        const div = document.createElement('div');
+        div.className = 'meta-views';
+        div.innerHTML = html;
+        metaDiv.appendChild(div);
+      }
+    }
+    const metaInfo = document.querySelector('.chapter-meta .meta-info');
+    if (metaInfo) metaInfo.textContent = `ICL 75판 · ${currentChapter.word_count.toLocaleString()} words · 조회 ${v.count}회`;
+  } else {
+    if (oldMeta) oldMeta.remove();
     const metaInfo = document.querySelector('.chapter-meta .meta-info');
     if (metaInfo) metaInfo.textContent = 'ICL 75판 · ' + currentChapter.word_count.toLocaleString() + ' words';
   }
@@ -873,7 +909,7 @@ function buildNav() {
     chapters.forEach(ch => {
       const v = viewData[ch.num];
       const viewHtml = (v && v.count > 0)
-        ? `<span class="view-badge">${v.count}회</span><span class="view-time">${timeAgo(v.lastViewed)}</span><span class="view-reset" onclick="resetChapterView(${ch.num}, event)" title="이 단원 조회수 초기화">✕</span>`
+        ? `<span class="view-badge">${v.count}회</span><span class="view-time">${timeAgo(v.lastViewed)}</span><span class="view-minus" onclick="decrementChapterView(${ch.num}, event)" title="조회수 1회 차감">−</span><span class="view-reset" onclick="resetChapterView(${ch.num}, event)" title="이 단원 조회수 초기화">✕</span>`
         : '';
 
       const item = document.createElement('div');
@@ -955,7 +991,7 @@ function loadChapter(num) {
       <div class="chapter-meta">
         <div class="meta-title">Chapter ${num}: ${ch.title}</div>
         <div class="meta-info">ICL 75판 · ${ch.word_count.toLocaleString()} words${viewInfo}</div>
-        ${v.count > 0 ? `<div class="meta-views">👁 ${v.count}회 열람 · ${timeAgo(v.lastViewed)}<button class="meta-reset-btn" onclick="resetChapterView(${num}, event)">✕ 초기화</button></div>` : ''}
+        ${v.count > 0 ? `<div class="meta-views">👁 ${v.count}회 열람 · ${timeAgo(v.lastViewed)}<button class="meta-minus-btn" onclick="decrementChapterView(${num}, event)" title="조회수 1회 차감">−1</button><button class="meta-reset-btn" onclick="resetChapterView(${num}, event)">✕ 초기화</button></div>` : ''}
       </div>
       ${ch.content}
     </div>
