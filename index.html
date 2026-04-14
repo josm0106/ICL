@@ -399,7 +399,7 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;bac
   <div class="memo-resize-handle" id="memoResizeHandle"></div>
   <div class="memo-panel-header">
     <h3>📋 암기노트</h3>
-    <span class="memo-close" onclick="toggleMemo()">&times;</span>
+    <span class="memo-close" onpointerdown="closeMemo(event)">&times;</span>
   </div>
   <!-- Tab bar: 하이라이트 / 자유메모 -->
   <div class="memo-tabs">
@@ -1029,6 +1029,10 @@ let currentMemoFilter = 'all';     // 'all' or section index (0-11)
 let freeMemos = [];
 
 function toggleMemo() { document.getElementById('memoPanel').classList.toggle('open'); }
+function closeMemo(e) {
+  if (e) { e.stopPropagation(); e.preventDefault(); }
+  document.getElementById('memoPanel').classList.remove('open');
+}
 
 // --- Section helper ---
 function getSectionForChapter(chNum) {
@@ -1696,6 +1700,12 @@ function showHighlightPopup() {
 
 // Desktop: mouseup
 document.addEventListener('mouseup', (e) => {
+  // Ignore events inside memo panel and sidebar
+  const memoPanel = document.getElementById('memoPanel');
+  if (memoPanel && memoPanel.contains(e.target)) return;
+  const sidebar = document.getElementById('sidebar');
+  if (sidebar && sidebar.contains(e.target)) return;
+
   const fp = document.getElementById('floatPopup');
   const rp = document.getElementById('hlRemovePopup');
   if (fp && fp.contains(e.target)) return;
@@ -1727,6 +1737,12 @@ document.addEventListener('selectionchange', () => {
 
 // Tap on highlight to delete (mobile)
 document.addEventListener('touchend', (e) => {
+  // Ignore events inside memo panel and sidebar
+  const memoPanel = document.getElementById('memoPanel');
+  if (memoPanel && memoPanel.contains(e.target)) return;
+  const sidebar = document.getElementById('sidebar');
+  if (sidebar && sidebar.contains(e.target)) return;
+
   const fp = document.getElementById('floatPopup');
   const rp = document.getElementById('hlRemovePopup');
   if (fp && fp.contains(e.target)) return;
