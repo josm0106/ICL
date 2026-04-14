@@ -1482,7 +1482,8 @@ document.addEventListener('mouseup', (e) => {
       ev.preventDefault();
       ev.stopPropagation();
       const hlId = 'hl_' + Date.now();
-      applyHighlightToRange(savedRange, color, hlId);
+      // Use serialized offsets to apply highlight (more reliable than savedRange)
+      deserializeAndHighlight(serialized.startOffset, serialized.endOffset, color, hlId, contentEl);
       // Save
       if (!highlights[currentChapter.num]) highlights[currentChapter.num] = [];
       highlights[currentChapter.num].push({
