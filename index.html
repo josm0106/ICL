@@ -1394,23 +1394,104 @@ function restoreHighlightsForChapter(chNum) {
 }
 
 function removeHighlight(hlId) {
-  // Remove from DOM
-  document.querySelectorAll(`mark[data-hl-id="${hlId}"]`).forEach(mark => {
-    const parent = mark.parentNode;
-    while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
-    parent.removeChild(mark);
-    parent.normalize();
+  removeHighlightGroup([hlId]);
+}
+
+function removeHighlightGroup(hlIds) {
+  // Remove all marks from DOM
+  hlIds.forEach(id => {
+    document.querySelectorAll(`mark[data-hl-id="${id}"]`).forEach(mark => {
+      const parent = mark.parentNode;
+      while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+      parent.removeChild(mark);
+      parent.normalize();
+    });
   });
   // Remove from storage
   if (currentChapter) {
     const chNum = currentChapter.num;
     if (highlights[chNum]) {
-      highlights[chNum] = highlights[chNum].filter(h => h.id !== hlId);
+      highlights[chNum] = highlights[chNum].filter(h => !hlIds.includes(h.id));
       if (highlights[chNum].length === 0) delete highlights[chNum];
       saveHighlights();
     }
   }
   removeHlPopup();
+}
+
+// Find all highlight IDs that overlap/touch and share the same color
+function getConnectedHighlightIds(hlId) {
+  if (!currentChapter || !highlights[currentChapter.num]) return [hlId];
+  const chHighlights = highlights[currentChapter.num];
+  const target = chHighlights.find(h => h.id === hlId);
+  if (!target) return [hlId];
+
+  // Find all same-color highlights that overlap or are adjacent (within 2 chars)
+  const connected = new Set([hlId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    chHighlights.forEach(h => {
+      if (connected.has(h.id) || h.color !== target.color) return;
+      // Check if h overlaps or touches any connected highlight
+      for (const cId of connected) {
+        const c = chHighlights.find(x => x.id === cId);
+        if (!c) continue;
+        if (h.startOffset <= c.endOffset + 2 && h.endOffset >= c.startOffset - 2) {
+          connected.add(h.id);
+          changed = true;
+          break;
+        }
+      }
+    });
+  }
+  return Array.from(connected);
+}
+
+// Merge overlapping/adjacent same-color highlights after adding a new one
+function mergeHighlights(chNum) {
+  if (!highlights[chNum] || highlights[chNum].length < 2) return;
+  const byColor = {};
+  highlights[chNum].forEach(h => {
+    if (!byColor[h.color]) byColor[h.color] = [];
+    byColor[h.color].push(h);
+  });
+
+  const merged = [];
+  Object.keys(byColor).forEach(color => {
+    const items = byColor[color].sort((a, b) => a.startOffset - b.startOffset);
+    let current = { ...items[0] };
+    for (let i = 1; i < items.length; i++) {
+      if (items[i].startOffset <= current.endOffset + 2) {
+        // Merge: extend range
+        current.endOffset = Math.max(current.endOffset, items[i].endOffset);
+        current.text = current.text; // keep first text as label
+      } else {
+        merged.push(current);
+        current = { ...items[i] };
+      }
+    }
+    merged.push(current);
+  });
+
+  highlights[chNum] = merged;
+}
+
+// Re-render all highlights: remove existing marks, re-apply from data
+function reRenderHighlights(chNum, contentEl) {
+  // Remove all existing highlight marks
+  contentEl.querySelectorAll('mark[data-hl-id]').forEach(mark => {
+    const parent = mark.parentNode;
+    while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+    parent.removeChild(mark);
+  });
+  // Normalize text nodes
+  contentEl.normalize();
+  // Re-apply all highlights from data
+  const chHighlights = highlights[chNum] || [];
+  chHighlights.forEach(h => {
+    deserializeAndHighlight(h.startOffset, h.endOffset, h.color, h.id, contentEl);
+  });
 }
 
 // ===== FLOAT POPUP (형광펜 색상 + 암기노트) =====
@@ -1426,6 +1507,12 @@ function removeHlPopup() {
 }
 
 document.addEventListener('mouseup', (e) => {
+  // Ignore if clicking inside our popups
+  const floatPopup = document.getElementById('floatPopup');
+  const hlRemovePopup = document.getElementById('hlRemovePopup');
+  if (floatPopup && floatPopup.contains(e.target)) return;
+  if (hlRemovePopup && hlRemovePopup.contains(e.target)) return;
+
   // Check if clicking on existing highlight → show remove popup
   const hlMark = e.target.closest('mark[data-hl-id]');
   if (hlMark && !window.getSelection().toString().trim()) {
@@ -1436,9 +1523,11 @@ document.addEventListener('mouseup', (e) => {
     popup.className = 'hl-remove-popup';
     popup.style.top = (rect.top - 38) + 'px';
     popup.style.left = (rect.left + rect.width/2 - 60) + 'px';
+    // Find ALL highlight IDs connected to this color group
     const hlId = hlMark.getAttribute('data-hl-id');
+    const groupIds = getConnectedHighlightIds(hlId);
     popup.innerHTML = `
-      <button class="hl-rm-del" onclick="removeHighlight('${hlId}')">🗑 삭제</button>
+      <button class="hl-rm-del" onclick="removeHighlightGroup(${JSON.stringify(groupIds)})">🗑 삭제</button>
       <button class="hl-rm-cancel" onclick="removeHlPopup()">취소</button>
     `;
     document.body.appendChild(popup);
@@ -1462,8 +1551,8 @@ document.addEventListener('mouseup', (e) => {
 
   removeFloatPopup();
   const range = sel.getRangeAt(0);
-  const savedRange = range.cloneRange();
   const serialized = serializeRange(range, contentEl);
+  if (serialized.startOffset < 0 || serialized.endOffset < 0) return;
   const rect = range.getBoundingClientRect();
 
   const popup = document.createElement('div');
@@ -1482,16 +1571,19 @@ document.addEventListener('mouseup', (e) => {
       ev.preventDefault();
       ev.stopPropagation();
       const hlId = 'hl_' + Date.now();
-      // Use serialized offsets to apply highlight (more reliable than savedRange)
-      deserializeAndHighlight(serialized.startOffset, serialized.endOffset, color, hlId, contentEl);
-      // Save
-      if (!highlights[currentChapter.num]) highlights[currentChapter.num] = [];
-      highlights[currentChapter.num].push({
+      // Save to data
+      const chNum = currentChapter.num;
+      if (!highlights[chNum]) highlights[chNum] = [];
+      highlights[chNum].push({
         id: hlId, color, text,
         startOffset: serialized.startOffset,
         endOffset: serialized.endOffset
       });
+      // Merge overlapping same-color highlights
+      mergeHighlights(chNum);
       saveHighlights();
+      // Re-render all highlights for this chapter (clean approach)
+      reRenderHighlights(chNum, contentEl);
       window.getSelection().removeAllRanges();
       removeFloatPopup();
     };
