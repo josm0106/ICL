@@ -324,6 +324,7 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;bac
     <input type="password" id="loginPw" placeholder="비밀번호 입력" autocomplete="current-password">
     <label class="login-auto"><input type="checkbox" id="loginAuto" checked> 자동 로그인</label>
     <button class="login-btn" id="loginBtn" onclick="doLogin()">로그인</button>
+    <button class="login-btn" id="offlineBtn" onclick="startOffline()" style="margin-top:8px;background:var(--dark3);color:var(--text2);font-size:12.5px">로그인 없이 사용 (기존 데이터 유지)</button>
     <div class="login-error" id="loginError"></div>
   </div>
 </div>
@@ -516,9 +517,23 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+function startOffline() {
+  // Load from localStorage directly, skip Firebase
+  document.getElementById('loginOverlay').style.display = 'none';
+  memos = JSON.parse(localStorage.getItem('icl75_memos') || '[]');
+  freeMemos = JSON.parse(localStorage.getItem('icl75_freememos') || '[]');
+  viewData = JSON.parse(localStorage.getItem('icl75_views') || '{}');
+  highlights = JSON.parse(localStorage.getItem('icl75_highlights') || '{}');
+  offlineMode = true;
+  initApp();
+}
+
+let offlineMode = false;
+
 function doLogout() {
   if (!confirm('로그아웃 하시겠습니까?')) return;
   auth.signOut();
+  location.reload();
 }
 
 // ===== AUTH STATE LISTENER =====
@@ -602,11 +617,17 @@ async function loadFromFirestore() {
 
 // ===== FIRESTORE: SAVE ALL DATA (debounced) =====
 function syncToCloud() {
+  // Always save to localStorage as backup
+  localStorage.setItem('icl75_memos', JSON.stringify(memos));
+  localStorage.setItem('icl75_freememos', JSON.stringify(freeMemos));
+  localStorage.setItem('icl75_views', JSON.stringify(viewData));
+  localStorage.setItem('icl75_highlights', JSON.stringify(highlights));
+  // If logged in, also sync to Firestore
   if (!firestoreReady || !currentUser) return;
   clearTimeout(syncDebounceTimer);
   syncDebounceTimer = setTimeout(() => {
     saveToFirestore();
-  }, 1500); // Debounce 1.5s to avoid excessive writes
+  }, 1500);
 }
 
 async function saveToFirestore() {
