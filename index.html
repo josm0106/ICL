@@ -343,8 +343,8 @@ body{font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;bac
     <div class="sub">Instructional Course Lectures Vol.75</div>
   </div>
   <div class="user-bar" id="userBar" style="display:none">
-    <div class="user-info"><span class="user-icon">J</span><span id="userDisplayName">josm0106</span></div>
-    <button class="logout-btn" onclick="doLogout()">로그아웃</button>
+    <div class="user-info"><span class="user-icon">J</span><span id="userDisplayName">오프라인</span></div>
+    <button class="logout-btn" id="logoutBtn" onclick="doLogout()">로그인 전환</button>
   </div>
   <div class="search-box">
     <input type="text" id="searchInput" placeholder="단원명 또는 내용 검색..." oninput="filterChapters()">
@@ -518,17 +518,37 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function startOffline() {
-  // Load from localStorage directly, skip Firebase
   document.getElementById('loginOverlay').style.display = 'none';
   memos = JSON.parse(localStorage.getItem('icl75_memos') || '[]');
   freeMemos = JSON.parse(localStorage.getItem('icl75_freememos') || '[]');
   viewData = JSON.parse(localStorage.getItem('icl75_views') || '{}');
   highlights = JSON.parse(localStorage.getItem('icl75_highlights') || '{}');
   offlineMode = true;
+  localStorage.setItem('icl75_mode', 'offline');
   initApp();
 }
 
 let offlineMode = false;
+
+// Auto-start: check saved mode on page load
+(function autoStart() {
+  const savedMode = localStorage.getItem('icl75_mode');
+  if (savedMode === 'offline') {
+    // Instantly hide login, load from localStorage
+    document.getElementById('loginOverlay').style.display = 'none';
+    offlineMode = true;
+    memos = JSON.parse(localStorage.getItem('icl75_memos') || '[]');
+    freeMemos = JSON.parse(localStorage.getItem('icl75_freememos') || '[]');
+    viewData = JSON.parse(localStorage.getItem('icl75_views') || '{}');
+    highlights = JSON.parse(localStorage.getItem('icl75_highlights') || '{}');
+    // Wait for DOM then init
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => initApp());
+    } else {
+      setTimeout(() => initApp(), 0);
+    }
+  }
+})();
 
 function doLogout() {
   if (!confirm('로그아웃 하시겠습니까?')) return;
@@ -538,6 +558,8 @@ function doLogout() {
 
 // ===== AUTH STATE LISTENER =====
 auth.onAuthStateChanged(user => {
+  if (offlineMode) return; // Don't interfere with offline mode
+
   const overlay = document.getElementById('loginOverlay');
   const userBar = document.getElementById('userBar');
 
@@ -545,6 +567,7 @@ auth.onAuthStateChanged(user => {
     currentUser = user;
     overlay.style.display = 'none';
     userBar.style.display = 'flex';
+    localStorage.setItem('icl75_mode', 'firebase');
     const displayName = user.email.replace('@icl75.app', '');
     document.getElementById('userDisplayName').textContent = displayName;
     document.querySelector('.user-icon').textContent = displayName.charAt(0).toUpperCase();
@@ -559,7 +582,6 @@ auth.onAuthStateChanged(user => {
     firestoreReady = false;
     overlay.style.display = 'flex';
     userBar.style.display = 'none';
-    // Auto-fill login fields
     document.getElementById('loginBtn').disabled = false;
     document.getElementById('loginBtn').textContent = '로그인';
   }
@@ -653,7 +675,30 @@ async function saveToFirestore() {
 }
 
 // ===== APP INIT (called after auth) =====
+let appInitialized = false;
 function initApp() {
+  if (appInitialized) return; // Prevent double init
+  appInitialized = true;
+
+  // Show user bar
+  const userBar = document.getElementById('userBar');
+  userBar.style.display = 'flex';
+  if (offlineMode) {
+    document.getElementById('userDisplayName').textContent = '오프라인 모드';
+    document.querySelector('.user-icon').textContent = '📴';
+    document.getElementById('logoutBtn').textContent = '로그인 전환';
+    document.getElementById('logoutBtn').onclick = function() {
+      localStorage.removeItem('icl75_mode');
+      location.reload();
+    };
+  } else if (currentUser) {
+    const displayName = currentUser.email.replace('@icl75.app', '');
+    document.getElementById('userDisplayName').textContent = displayName;
+    document.querySelector('.user-icon').textContent = displayName.charAt(0).toUpperCase();
+    document.getElementById('logoutBtn').textContent = '로그아웃';
+    document.getElementById('logoutBtn').onclick = doLogout;
+  }
+
   buildNav();
   initFreeMemoTargets();
   renderFilterChips();
