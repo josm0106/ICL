@@ -1799,6 +1799,57 @@ function processHeadings() {
       p.parentNode.replaceChild(heading, p);
     }
   });
+
+  // === Phase 2: Split long paragraphs at section boundaries ===
+  // For chapters with no headings at all, detect section transitions inside long <p> blocks
+  const headingsFound = content.querySelectorAll('h2.auto-heading, h3.auto-heading, h2, h3').length;
+  if (headingsFound < 2) {
+    // Section keyword patterns to detect inside paragraphs
+    const sectionPatterns = [
+      { re: /(?:^|(?<=\.\s)|(?<=\.\n)|(?<=다\.\s)|(?<=다\.))(\s*)([A-Z][a-z]+(?:\s+[A-Za-z]+){0,5})\s*(?:\n|$)/gm, level: 2 },
+    ];
+
+    const longPs = Array.from(content.querySelectorAll('p')).filter(p => p.textContent.length > 300);
+    longPs.forEach(p => {
+      const html = p.innerHTML;
+      // Detect English section titles: sentence ends (다. or .) followed by capitalized phrase
+      // Pattern: "...다. " or "...]. " followed by English Title Case words (2-8 words, < 80 chars)
+      const splitRe = /((?:다|, )\.\s*(?:<\/[^>]+>\s*)*)((?:[A-Z][a-z]+(?:\s+(?:and|of|the|in|for|with|to|on|vs|or|&amp;|[A-Z][a-z]+))*(?:\s+[A-Z][a-z]+)*)\s*(?:\([가-힣\s]+\))?)/g;
+
+      let newHtml = html;
+      const matches = [];
+      let m;
+      while ((m = splitRe.exec(html)) !== null) {
+        const title = m[2].replace(/<[^>]+>/g, '').trim();
+        const words = title.split(/\s+/);
+        // Must be 1-8 words, not too long, and look like a heading
+        if (words.length >= 1 && words.length <= 10 && title.length < 100 && title.length > 3) {
+          // Avoid matching regular sentences
+          if (!/\.$/.test(title) && !/^(This|These|The|In|A|It|For|As|When|However|Although|Most|Some|If|There)$/.test(words[0])) {
+            matches.push({ full: m[0], prefix: m[1], title: m[2], index: m.index });
+          }
+        }
+      }
+
+      // Apply splits in reverse order to preserve indices
+      if (matches.length > 0) {
+        for (let i = matches.length - 1; i >= 0; i--) {
+          const match = matches[i];
+          const before = newHtml.substring(0, match.index + match.prefix.length);
+          const after = newHtml.substring(match.index + match.prefix.length + match.title.length);
+          const cleanTitle = match.title.replace(/<[^>]+>/g, '');
+          newHtml = before + '</p><h3 class="auto-heading">' + cleanTitle + '</h3><p>' + after;
+        }
+        // Replace original p with new HTML
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = newHtml;
+        while (wrapper.firstChild) {
+          p.parentNode.insertBefore(wrapper.firstChild, p);
+        }
+        p.remove();
+      }
+    });
+  }
 }
 
 // ===== MOBILE SIDEBAR =====
